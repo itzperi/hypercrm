@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "buildCommand": "npm install --prefix client --legacy-peer-deps && npm run build --prefix client",
+  "outputDirectory": "client/dist",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api" },
+    { "source": "/:path*", "destination": "/index.html" }
+  ],
+  "env": {
+    "NODE_ENV": "production",
+    "DB_PATH": "/tmp/hypercrm.db"
+  },
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 30
+    }
+  }
+}

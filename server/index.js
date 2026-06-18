@@ -1701,14 +1701,19 @@ setInterval(runOverdueEscalations, 30 * 60 * 1000);
 setTimeout(runOverdueEscalations, 10000);
 
 
-// Serve Frontend production build if in prod
-if (process.env.NODE_ENV === 'production') {
+// Serve Frontend production build if in prod (non-serverless only)
+if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
   app.use(express.static(path.join(__dirname, '../client/dist')));
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/dist/index.html'));
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`HyperCRM Backend API listening on http://localhost:${PORT}`);
-});
+// Export for Vercel serverless — do not call listen in serverless context
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`HyperCRM Backend API listening on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

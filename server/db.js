@@ -3,7 +3,7 @@ const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 
-const dbPath = path.resolve(__dirname, '../hypercrm.db');
+const dbPath = process.env.DB_PATH || path.resolve(__dirname, '../hypercrm.db');
 const schemaPath = path.resolve(__dirname, 'schema.sql');
 
 console.log(`Connecting to SQLite database at: ${dbPath}`);

@@ -10,7 +10,7 @@ import SchedulerModule from './components/SchedulerModule';
 import MarketingModule from './components/MarketingModule';
 import LearningModule from './components/LearningModule';
 import SettingsModule from './components/SettingsModule';
-import { Bell, Plus, X } from 'lucide-react';
+import { Bell, Plus, X, Menu } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -43,6 +43,9 @@ export default function App() {
     pm_id: '',
     lead_dev_id: ''
   });
+
+  // Mobile sidebar toggle
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Toast helper
   const showToast = (message, type = 'success') => {
@@ -193,6 +196,7 @@ export default function App() {
     setUser(null);
     setCurrentPage('dashboard');
     setCredentials({ username: '', password: '' });
+    setSidebarOpen(false);
   };
 
   const handleMarkNotifRead = () => {
@@ -258,7 +262,7 @@ export default function App() {
   // --- RENDER PORTALS ---
   if (!user) {
     return (
-      <div className="auth-container">
+      <div className="auth-container" style={{ padding: '16px' }}>
         <div className="auth-card">
           <div className="auth-brand">
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -304,17 +308,26 @@ export default function App() {
   return (
     <div className="crm-layout">
       {/* Sidebar Menu */}
-      <Sidebar 
-        user={user} 
-        currentPage={currentPage} 
-        setCurrentPage={setCurrentPage} 
-        onLogout={handleLogout} 
+      <Sidebar
+        user={user}
+        currentPage={currentPage}
+        setCurrentPage={(page) => { setCurrentPage(page); setSidebarOpen(false); }}
+        onLogout={handleLogout}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
 
       {/* Main Container */}
       <main className="crm-main">
         {/* Nav header */}
         <header className="crm-navbar">
+          <button
+            className="mobile-menu-btn"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open menu"
+          >
+            <Menu size={22} />
+          </button>
           <div className="navbar-title">{getPageTitle()}</div>
           <div className="navbar-actions">
             

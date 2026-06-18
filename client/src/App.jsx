@@ -218,7 +218,7 @@ export default function App() {
       case 'development':
         return <DevelopmentModule user={user} showToast={showToast} triggerAddProject={() => setShowProjectModal(true)} />;
       case 'accounts':
-        return <AccountsModule user={user} />;
+        return <AccountsModule user={user} showToast={showToast} />;
       case 'tasks':
         return <WorkTrackingModule user={user} showToast={showToast} />;
       case 'attendance':

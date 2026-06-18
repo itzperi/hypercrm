@@ -10,7 +10,9 @@ import {
   Zap,
   Calendar,
   CheckSquare,
-  Plus
+  Plus,
+  Edit,
+  Trash2
 } from 'lucide-react';
 import DocumentGenerator from './DocumentGenerator';
 
@@ -24,6 +26,12 @@ export default function SalesModule({ user, showToast, triggerAddProject }) {
   const [leads, setLeads] = useState([]);
   const [employees, setEmployees] = useState([]);
   
+  // Editing states
+  const [editingRevenue, setEditingRevenue] = useState(null);
+  const [editingExpense, setEditingExpense] = useState(null);
+  const [editingClient, setEditingClient] = useState(null);
+  const [editingLead, setEditingLead] = useState(null);
+
   // Document Generator state
   const [activeDocData, setActiveDocData] = useState(null);
 
@@ -65,6 +73,12 @@ export default function SalesModule({ user, showToast, triggerAddProject }) {
   const totalRevVal = revenue.reduce((sum, r) => sum + r.amount, 0);
   const totalExpVal = expenses.reduce((sum, e) => sum + e.amount, 0);
   const netProfit = totalRevVal - totalExpVal;
+
+  const fmt = (val) => {
+    const isNegative = val < 0;
+    const formatted = Math.abs(val).toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
+    return `${isNegative ? '-' : ''}${formatted}`;
+  };
 
   const handleRevenueSubmit = (e) => {
     e.preventDefault();
@@ -128,6 +142,130 @@ export default function SalesModule({ user, showToast, triggerAddProject }) {
         setLeadForm({ name: '', business_name: '', email: '', phone: '', channel: 'referral', follow_up_date: '', owner_id: '' });
       }
     });
+  };
+
+  const handleDeleteRevenue = (id) => {
+    if (!window.confirm("Delete this revenue entry?")) return;
+    fetch(`/api/revenue/${id}`, { method: 'DELETE', headers })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast("Revenue record deleted");
+          loadData();
+        }
+      });
+  };
+
+  const handleEditRevenueSubmit = (e) => {
+    e.preventDefault();
+    fetch(`/api/revenue/${editingRevenue.id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(editingRevenue)
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast("Revenue record updated");
+          setEditingRevenue(null);
+          loadData();
+        }
+      });
+  };
+
+  const handleDeleteExpense = (id) => {
+    if (!window.confirm("Delete this expense entry?")) return;
+    fetch(`/api/expenses/${id}`, { method: 'DELETE', headers })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast("Expense record deleted");
+          loadData();
+        }
+      });
+  };
+
+  const handleEditExpenseSubmit = (e) => {
+    e.preventDefault();
+    fetch(`/api/expenses/${editingExpense.id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(editingExpense)
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast("Expense record updated");
+          setEditingExpense(null);
+          loadData();
+        }
+      });
+  };
+
+  const handleDeleteClient = (id) => {
+    if (!window.confirm("Delete this client and their portal user?")) return;
+    fetch(`/api/clients/${id}`, { method: 'DELETE', headers })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast("Client deleted successfully");
+          loadData();
+        }
+      });
+  };
+
+  const handleEditClientSubmit = (e) => {
+    e.preventDefault();
+    fetch(`/api/clients/${editingClient.id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(editingClient)
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast("Client details updated");
+          setEditingClient(null);
+          loadData();
+        }
+      });
+  };
+
+  const handleDeleteLead = (id) => {
+    if (!window.confirm("Delete this lead?")) return;
+    fetch(`/api/leads/${id}`, { method: 'DELETE', headers })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast("Lead deleted");
+          loadData();
+        }
+      });
+  };
+
+  const handleEditLeadSubmit = (e) => {
+    e.preventDefault();
+    fetch(`/api/leads/${editingLead.id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(editingLead)
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast("Lead details updated");
+          setEditingLead(null);
+          loadData();
+        }
+      });
   };
 
   const handleLeadLogSubmit = (e) => {
@@ -276,16 +414,16 @@ export default function SalesModule({ user, showToast, triggerAddProject }) {
           <div className="metrics-grid">
             <div className="metric-card">
               <span className="metric-label">Total Revenue</span>
-              <div className="metric-value" style={{ color: 'var(--lime-bright)' }}>${totalRevVal}</div>
+              <div className="metric-value" style={{ color: 'var(--lime-bright)' }}>{fmt(totalRevVal)}</div>
             </div>
             <div className="metric-card gold">
               <span className="metric-label">Total Expenses</span>
-              <div className="metric-value" style={{ color: 'var(--alert)' }}>-${totalExpVal}</div>
+              <div className="metric-value" style={{ color: 'var(--alert)' }}>{fmt(-totalExpVal)}</div>
             </div>
             <div className="metric-card">
               <span className="metric-label">Net Operating P&amp;L</span>
               <div className="metric-value" style={{ color: netProfit >= 0 ? 'var(--lime-bright)' : 'var(--alert)' }}>
-                ${netProfit}
+                {fmt(netProfit)}
               </div>
             </div>
           </div>
@@ -303,6 +441,7 @@ export default function SalesModule({ user, showToast, triggerAddProject }) {
                         <th>Invoice Ref</th>
                         <th>Method</th>
                         <th>Amount</th>
+                        <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -312,7 +451,17 @@ export default function SalesModule({ user, showToast, triggerAddProject }) {
                           <td>{r.client_company || 'Direct'}</td>
                           <td className="mono">{r.invoice_ref || '—'}</td>
                           <td>{r.payment_method}</td>
-                          <td className="amount">${r.amount}</td>
+                          <td className="amount">{fmt(r.amount)}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button className="btn secondary" style={{ padding: '2px 6px' }} onClick={() => setEditingRevenue(r)}>
+                                <Edit size={12} />
+                              </button>
+                              <button className="btn danger" style={{ padding: '2px 6px' }} onClick={() => handleDeleteRevenue(r.id)}>
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -331,6 +480,7 @@ export default function SalesModule({ user, showToast, triggerAddProject }) {
                         <th>Paid To</th>
                         <th>Recorded By</th>
                         <th>Amount</th>
+                        <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -340,7 +490,17 @@ export default function SalesModule({ user, showToast, triggerAddProject }) {
                           <td><span className="badge warning">{e.category}</span></td>
                           <td>{e.paid_to}</td>
                           <td>{e.recorder_name}</td>
-                          <td className="amount" style={{ color: 'var(--alert)' }}>-${e.amount}</td>
+                          <td className="amount" style={{ color: 'var(--alert)' }}>{fmt(-e.amount)}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button className="btn secondary" style={{ padding: '2px 6px' }} onClick={() => setEditingExpense(e)}>
+                                <Edit size={12} />
+                              </button>
+                              <button className="btn danger" style={{ padding: '2px 6px' }} onClick={() => handleDeleteExpense(e.id)}>
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -354,8 +514,8 @@ export default function SalesModule({ user, showToast, triggerAddProject }) {
                 <div className="panel-card-title">Log Daily Revenue</div>
                 <form onSubmit={handleRevenueSubmit}>
                   <div className="form-group">
-                    <label>Amount ($)</label>
-                    <input type="number" required value={revForm.amount} onChange={e => setRevForm({...revForm, amount: parseFloat(e.target.value)})} />
+                    <label>Amount (₹)</label>
+                    <input type="number" required value={revForm.amount} onChange={e => setRevForm({...revForm, amount: parseFloat(e.target.value)})} min="0" step="any" />
                   </div>
                   <div className="form-group">
                     <label>Payment Date</label>
@@ -385,8 +545,8 @@ export default function SalesModule({ user, showToast, triggerAddProject }) {
                 <div className="panel-card-title gold">Log Operational Expense</div>
                 <form onSubmit={handleExpenseSubmit}>
                   <div className="form-group">
-                    <label>Amount ($)</label>
-                    <input type="number" required value={expForm.amount} onChange={e => setExpForm({...expForm, amount: parseFloat(e.target.value)})} />
+                    <label>Amount (₹)</label>
+                    <input type="number" required value={expForm.amount} onChange={e => setExpForm({...expForm, amount: parseFloat(e.target.value)})} min="0" step="any" />
                   </div>
                   <div className="form-group">
                     <label>Date Paid</label>
@@ -432,12 +592,20 @@ export default function SalesModule({ user, showToast, triggerAddProject }) {
                     </p>
                     <div style={{ margin: '8px 0', borderBottom: '1.5px solid rgba(255,255,255,0.03)' }}></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)' }}>
-                      <span>Setup: ${c.setup_fee}</span>
-                      <span>Recurring: ${c.recurring_fee}/mo</span>
+                      <span>Setup: {fmt(c.setup_fee)}</span>
+                      <span>Recurring: {fmt(c.recurring_fee)}/mo</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', marginTop: '6px', color: 'var(--lime-bright)' }}>
                       <span>SOW: {c.contract_ref || 'HW-CC-PRM'}</span>
                       <span>Start: {c.start_date}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
+                      <button className="btn secondary" style={{ padding: '2px 6px' }} onClick={() => setEditingClient(c)}>
+                        <Edit size={11} />
+                      </button>
+                      <button className="btn danger" style={{ padding: '2px 6px' }} onClick={() => handleDeleteClient(c.id)}>
+                        <Trash2 size={11} />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -478,12 +646,12 @@ export default function SalesModule({ user, showToast, triggerAddProject }) {
                 </div>
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Setup Fee</label>
-                    <input type="number" value={clientForm.setup_fee} onChange={e => setClientForm({...clientForm, setup_fee: parseFloat(e.target.value)})} />
+                    <label>Setup Fee (₹)</label>
+                    <input type="number" value={clientForm.setup_fee} onChange={e => setClientForm({...clientForm, setup_fee: parseFloat(e.target.value)})} min="0" step="any" />
                   </div>
                   <div className="form-group">
-                    <label>Monthly Fee</label>
-                    <input type="number" value={clientForm.recurring_fee} onChange={e => setClientForm({...clientForm, recurring_fee: parseFloat(e.target.value)})} />
+                    <label>Monthly Fee (₹)</label>
+                    <input type="number" value={clientForm.recurring_fee} onChange={e => setClientForm({...clientForm, recurring_fee: parseFloat(e.target.value)})} min="0" step="any" />
                   </div>
                 </div>
                 <div className="form-group">
@@ -531,9 +699,17 @@ export default function SalesModule({ user, showToast, triggerAddProject }) {
                           </span>
                         </td>
                         <td>
-                          <button className="btn primary" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={() => setSelectedLeadForLog(lead)}>
-                            Log Activity
-                          </button>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button className="btn primary" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={() => setSelectedLeadForLog(lead)}>
+                              Log Activity
+                            </button>
+                            <button className="btn secondary" style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }} onClick={() => setEditingLead(lead)}>
+                              <Edit size={11} />
+                            </button>
+                            <button className="btn danger" style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }} onClick={() => handleDeleteLead(lead.id)}>
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -586,7 +762,7 @@ export default function SalesModule({ user, showToast, triggerAddProject }) {
             <div className="form-group">
               <textarea 
                 rows="10" 
-                placeholder="e.g. Dr. Parma, family physician clinic, USA, wants LeadHunter + ReputationGuard, setup $800, monthly $299, governing law client's state, 30-day cancellation..."
+                placeholder="e.g. Dr. Parma, family physician clinic, USA, wants LeadHunter + ReputationGuard, setup ₹800, monthly ₹299, governing law client's state, 30-day cancellation..."
                 value={briefText}
                 onChange={e => setBriefText(e.target.value)}
               />
@@ -667,6 +843,260 @@ export default function SalesModule({ user, showToast, triggerAddProject }) {
               <div className="form-actions">
                 <button type="button" className="btn secondary" onClick={() => setSelectedLeadForLog(null)}>Cancel</button>
                 <button className="btn primary">Submit Log</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT REVENUE MODAL */}
+      {editingRevenue && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '400px' }}>
+            <div className="modal-title">Edit Revenue Record</div>
+            <form onSubmit={handleEditRevenueSubmit}>
+              <div className="form-group">
+                <label>Amount (₹)</label>
+                <input 
+                  type="number" 
+                  required 
+                  value={editingRevenue.amount} 
+                  onChange={e => setEditingRevenue({...editingRevenue, amount: parseFloat(e.target.value)})}
+                  min="0"
+                  step="any"
+                />
+              </div>
+              <div className="form-group">
+                <label>Payment Date</label>
+                <input 
+                  type="date" 
+                  required 
+                  value={editingRevenue.date} 
+                  onChange={e => setEditingRevenue({...editingRevenue, date: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Client Reference</label>
+                <select 
+                  value={editingRevenue.client_id || ''} 
+                  onChange={e => setEditingRevenue({...editingRevenue, client_id: e.target.value || null})}
+                >
+                  <option value="">No Client (Direct Sale)</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.company} ({c.name})</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Payment Method</label>
+                <select 
+                  value={editingRevenue.payment_method} 
+                  onChange={e => setEditingRevenue({...editingRevenue, payment_method: e.target.value})}
+                >
+                  <option>Bank Transfer</option>
+                  <option>Stripe</option>
+                  <option>UPI</option>
+                  <option>Cash</option>
+                </select>
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn secondary" onClick={() => setEditingRevenue(null)}>Cancel</button>
+                <button className="btn primary">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT EXPENSE MODAL */}
+      {editingExpense && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '400px' }}>
+            <div className="modal-title gold">Edit Expense Record</div>
+            <form onSubmit={handleEditExpenseSubmit}>
+              <div className="form-group">
+                <label>Amount (₹)</label>
+                <input 
+                  type="number" 
+                  required 
+                  value={editingExpense.amount} 
+                  onChange={e => setEditingExpense({...editingExpense, amount: parseFloat(e.target.value)})}
+                  min="0"
+                  step="any"
+                />
+              </div>
+              <div className="form-group">
+                <label>Date Paid</label>
+                <input 
+                  type="date" 
+                  required 
+                  value={editingExpense.date} 
+                  onChange={e => setEditingExpense({...editingExpense, date: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Category</label>
+                <select 
+                  value={editingExpense.category} 
+                  onChange={e => setEditingExpense({...editingExpense, category: e.target.value})}
+                >
+                  <option value="salary">Salary Payment</option>
+                  <option value="tools/software">Tools &amp; Software</option>
+                  <option value="hosting">Hosting/Server Infra</option>
+                  <option value="marketing spend">Marketing Spend</option>
+                  <option value="office">Office &amp; Admin</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Paid To / Vendor</label>
+                <input 
+                  type="text" 
+                  value={editingExpense.paid_to || ''} 
+                  onChange={e => setEditingExpense({...editingExpense, paid_to: e.target.value})} 
+                />
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn secondary" onClick={() => setEditingExpense(null)}>Cancel</button>
+                <button className="btn gold">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT CLIENT MODAL */}
+      {editingClient && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '450px' }}>
+            <div className="modal-title gold">Edit Client Details</div>
+            <form onSubmit={handleEditClientSubmit}>
+              <div className="form-group">
+                <label>Contact Name</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={editingClient.name} 
+                  onChange={e => setEditingClient({...editingClient, name: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Business Name / Company</label>
+                <input 
+                  type="text" 
+                  value={editingClient.company || ''} 
+                  onChange={e => setEditingClient({...editingClient, company: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Country</label>
+                <select 
+                  value={editingClient.country} 
+                  onChange={e => setEditingClient({...editingClient, country: e.target.value})}
+                >
+                  <option>India</option>
+                  <option>US</option>
+                  <option>UK</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Account Status</label>
+                <select 
+                  value={editingClient.status} 
+                  onChange={e => setEditingClient({...editingClient, status: e.target.value})}
+                >
+                  <option>Lead</option>
+                  <option>Proposal Sent</option>
+                  <option>Contract Signed</option>
+                  <option>Active</option>
+                  <option>Paused</option>
+                </select>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Setup Fee (₹)</label>
+                  <input 
+                    type="number" 
+                    value={editingClient.setup_fee || 0} 
+                    onChange={e => setEditingClient({...editingClient, setup_fee: parseFloat(e.target.value)})}
+                    min="0"
+                    step="any"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Monthly Fee (₹)</label>
+                  <input 
+                    type="number" 
+                    value={editingClient.recurring_fee || 0} 
+                    onChange={e => setEditingClient({...editingClient, recurring_fee: parseFloat(e.target.value)})}
+                    min="0"
+                    step="any"
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Account Owner (Staff)</label>
+                <select 
+                  value={editingClient.account_owner_id || ''} 
+                  onChange={e => setEditingClient({...editingClient, account_owner_id: e.target.value || null})}
+                >
+                  <option value="">Unassigned</option>
+                  {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+                </select>
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn secondary" onClick={() => setEditingClient(null)}>Cancel</button>
+                <button className="btn gold">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT LEAD MODAL */}
+      {editingLead && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '400px' }}>
+            <div className="modal-title gold">Edit Sales Lead</div>
+            <form onSubmit={handleEditLeadSubmit}>
+              <div className="form-group">
+                <label>Lead Contact Name</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={editingLead.name} 
+                  onChange={e => setEditingLead({...editingLead, name: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Business Name</label>
+                <input 
+                  type="text" 
+                  value={editingLead.business_name || ''} 
+                  onChange={e => setEditingLead({...editingLead, business_name: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Lead Source Channel</label>
+                <select 
+                  value={editingLead.channel} 
+                  onChange={e => setEditingLead({...editingLead, channel: e.target.value})}
+                >
+                  <option value="referral">Referral</option>
+                  <option value="outbound">Outbound (Scraping/Cold)</option>
+                  <option value="inbound web">Inbound Web Website</option>
+                  <option value="partner">Channel Partner</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Follow-up Date</label>
+                <input 
+                  type="date" 
+                  value={editingLead.follow_up_date || ''} 
+                  onChange={e => setEditingLead({...editingLead, follow_up_date: e.target.value})} 
+                />
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn secondary" onClick={() => setEditingLead(null)}>Cancel</button>
+                <button className="btn gold">Save Changes</button>
               </div>
             </form>
           </div>

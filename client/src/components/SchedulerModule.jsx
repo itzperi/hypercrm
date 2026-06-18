@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Clock, Users, Plus, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Users, Plus, FileText, Edit, Trash2 } from 'lucide-react';
 
 export default function SchedulerModule({ user, showToast }) {
   const [meetings, setMeetings] = useState([]);
@@ -17,9 +17,19 @@ export default function SchedulerModule({ user, showToast }) {
     attendees: []
   });
 
-  // Selected meeting for notes/summary
+  // Selected meeting for notes/summary/edit
   const [activeMeetingForNotes, setActiveMeetingForNotes] = useState(null);
   const [notesInput, setNotesInput] = useState({ notes: '', what_discussed: '' });
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const [editMeetingForm, setEditMeetingForm] = useState({
+    title: '',
+    datetime: '',
+    duration: 30,
+    recurrence: 'one-off',
+    meeting_type: 'client-checkin',
+    linked_project_id: '',
+    attendees: []
+  });
 
   const headers = {
     'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -41,6 +51,22 @@ export default function SchedulerModule({ user, showToast }) {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleAttendeeToggle = (id) => {
+    const current = [...meetingForm.attendees];
+    const idx = current.indexOf(id);
+    if (idx > -1) current.splice(idx, 1);
+    else current.push(id);
+    setMeetingForm({ ...meetingForm, attendees: current });
+  };
+
+  const handleEditAttendeeToggle = (id) => {
+    const current = [...editMeetingForm.attendees];
+    const idx = current.indexOf(id);
+    if (idx > -1) current.splice(idx, 1);
+    else current.push(id);
+    setEditMeetingForm({ ...editMeetingForm, attendees: current });
+  };
 
   const handleCreateMeeting = (e) => {
     e.preventDefault();
@@ -76,6 +102,41 @@ export default function SchedulerModule({ user, showToast }) {
           showToast('Meeting notes and summary saved');
           loadData();
           setActiveMeetingForNotes(null);
+        }
+      });
+  };
+
+  const handleEditDetailsSubmit = (e) => {
+    e.preventDefault();
+    fetch(`/api/meetings/${activeMeetingForNotes.id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(editMeetingForm)
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Meeting details updated successfully');
+          loadData();
+          setActiveMeetingForNotes(null);
+        }
+      });
+  };
+
+  const handleDeleteMeeting = (id) => {
+    if (!window.confirm("Are you sure you want to delete this meeting?")) return;
+    fetch(`/api/meetings/${id}`, {
+      method: 'DELETE',
+      headers
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Meeting deleted successfully');
+          setActiveMeetingForNotes(null);
+          loadData();
         }
       });
   };
@@ -139,6 +200,16 @@ export default function SchedulerModule({ user, showToast }) {
                     onClick={() => {
                       setActiveMeetingForNotes(m);
                       setNotesInput({ notes: m.notes || '', what_discussed: m.what_discussed || '' });
+                      setIsEditingDetails(false);
+                      setEditMeetingForm({
+                        title: m.title || '',
+                        datetime: m.datetime || '',
+                        duration: m.duration || 30,
+                        recurrence: m.recurrence || 'one-off',
+                        meeting_type: m.meeting_type || 'client-checkin',
+                        linked_project_id: m.linked_project_id || '',
+                        attendees: m.attendees ? m.attendees.map(a => a.id) : []
+                      });
                     }}
                   >
                     {new Date(m.datetime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} {m.title}
@@ -176,7 +247,7 @@ export default function SchedulerModule({ user, showToast }) {
                   <label>Recurrence</label>
                   <select value={meetingForm.recurrence} onChange={e => setMeetingForm({...meetingForm, recurrence: e.target.value})}>
                     <option value="one-off">One-off</option>
-                    <option value="daily">Daily Status Sync</option>
+                    <option value="daily">Daily Sync</option>
                     <option value="weekly">Weekly Sync</option>
                   </select>
                 </div>
@@ -196,6 +267,21 @@ export default function SchedulerModule({ user, showToast }) {
                   {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
+              <div className="form-group">
+                <label>Attendees</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', maxHeight: '100px', overflowY: 'auto', padding: '6px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px' }}>
+                  {employees.map(emp => (
+                    <label key={emp.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', cursor: 'pointer', margin: 0 }}>
+                      <input 
+                        type="checkbox" 
+                        checked={meetingForm.attendees.includes(emp.id)} 
+                        onChange={() => handleAttendeeToggle(emp.id)}
+                      />
+                      {emp.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
               <button className="btn gold" style={{ width: '100%' }}>Schedule Event</button>
             </form>
           </div>
@@ -203,37 +289,143 @@ export default function SchedulerModule({ user, showToast }) {
 
       </div>
 
-      {/* --- DIALOG: MEETING NOTES & TRANSCRIPT SUMMARIES --- */}
+      {/* --- DIALOG: MEETING DETAILS, NOTES & TRANSCRIPT SUMMARIES --- */}
       {activeMeetingForNotes && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ width: '600px' }}>
-            <div className="modal-title">Meeting Notes &amp; Minutes: {activeMeetingForNotes.title}</div>
-            <form onSubmit={handleNotesUpdate}>
-              <div className="form-group">
-                <label>Raw Meeting Notes / Transcript Paste (Fathom/Recording sync)</label>
-                <textarea 
-                  rows="6" 
-                  placeholder="Paste complete raw transcripts, decisions, or text chat logs..." 
-                  value={notesInput.notes} 
-                  onChange={e => setNotesInput({...notesInput, notes: e.target.value})} 
-                />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <div className="crm-tabs" style={{ border: 'none', margin: 0, padding: 0 }}>
+                <button className={`tab-btn ${!isEditingDetails ? 'active' : ''}`} onClick={() => setIsEditingDetails(false)}>
+                  Notes &amp; Minutes
+                </button>
+                <button className={`tab-btn ${isEditingDetails ? 'active' : ''}`} onClick={() => setIsEditingDetails(true)}>
+                  Edit Event Details
+                </button>
               </div>
-              <div className="form-group">
-                <label>What was discussed (Pipes directly to Project Chat if linked)</label>
-                <textarea 
-                  required 
-                  rows="4" 
-                  placeholder="Provide a concise bulleted summary of choices made, action items, or client feedback..." 
-                  value={notesInput.what_discussed} 
-                  onChange={e => setNotesInput({...notesInput, what_discussed: e.target.value})} 
-                />
-              </div>
-              
-              <div className="form-actions">
-                <button type="button" className="btn secondary" onClick={() => setActiveMeetingForNotes(null)}>Close</button>
-                <button className="btn primary">Save Notes &amp; Sync Chat</button>
-              </div>
-            </form>
+              <button 
+                type="button" 
+                className="btn danger" 
+                style={{ padding: '6px 12px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                onClick={() => handleDeleteMeeting(activeMeetingForNotes.id)}
+              >
+                <Trash2 size={12} /> Delete Event
+              </button>
+            </div>
+
+            {!isEditingDetails ? (
+              <form onSubmit={handleNotesUpdate}>
+                <div className="form-group">
+                  <label>Raw Meeting Notes / Transcript Paste</label>
+                  <textarea 
+                    rows="6" 
+                    placeholder="Paste complete raw transcripts, decisions, or text chat logs..." 
+                    value={notesInput.notes} 
+                    onChange={e => setNotesInput({...notesInput, notes: e.target.value})} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label>What was discussed (Pipes directly to Project Chat if linked)</label>
+                  <textarea 
+                    required 
+                    rows="4" 
+                    placeholder="Provide a concise bulleted summary of choices made, action items, or client feedback..." 
+                    value={notesInput.what_discussed} 
+                    onChange={e => setNotesInput({...notesInput, what_discussed: e.target.value})} 
+                  />
+                </div>
+                
+                <div className="form-actions">
+                  <button type="button" className="btn secondary" onClick={() => setActiveMeetingForNotes(null)}>Close</button>
+                  <button className="btn primary">Save Notes &amp; Sync Chat</button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleEditDetailsSubmit}>
+                <div className="form-group">
+                  <label>Meeting Title</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={editMeetingForm.title} 
+                    onChange={e => setEditMeetingForm({...editMeetingForm, title: e.target.value})} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Date &amp; Time (9:00 AM – 4:30 PM)</label>
+                  <input 
+                    type="datetime-local" 
+                    required 
+                    value={editMeetingForm.datetime} 
+                    onChange={e => setEditMeetingForm({...editMeetingForm, datetime: e.target.value})} 
+                  />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Duration (Mins)</label>
+                    <select 
+                      value={editMeetingForm.duration} 
+                      onChange={e => setEditMeetingForm({...editMeetingForm, duration: parseInt(e.target.value)})}
+                    >
+                      <option value="15">15 mins</option>
+                      <option value="30">30 mins</option>
+                      <option value="45">45 mins</option>
+                      <option value="60">60 mins</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Recurrence</label>
+                    <select 
+                      value={editMeetingForm.recurrence} 
+                      onChange={e => setEditMeetingForm({...editMeetingForm, recurrence: e.target.value})}
+                    >
+                      <option value="one-off">One-off</option>
+                      <option value="daily">Daily Sync</option>
+                      <option value="weekly">Weekly Sync</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Meeting Type</label>
+                  <select 
+                    value={editMeetingForm.meeting_type} 
+                    onChange={e => setEditMeetingForm({...editMeetingForm, meeting_type: e.target.value})}
+                  >
+                    <option value="standup">Internal Standup</option>
+                    <option value="status">Project Sync Status</option>
+                    <option value="client-checkin">Client Check-in Call</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Link Project</label>
+                  <select 
+                    value={editMeetingForm.linked_project_id} 
+                    onChange={e => setEditMeetingForm({...editMeetingForm, linked_project_id: e.target.value})}
+                  >
+                    <option value="">No Project</option>
+                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Attendees</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', maxHeight: '100px', overflowY: 'auto', padding: '6px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px' }}>
+                    {employees.map(emp => (
+                      <label key={emp.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', cursor: 'pointer', margin: 0 }}>
+                        <input 
+                          type="checkbox" 
+                          checked={editMeetingForm.attendees.includes(emp.id)} 
+                          onChange={() => handleEditAttendeeToggle(emp.id)}
+                        />
+                        {emp.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="form-actions">
+                  <button type="button" className="btn secondary" onClick={() => setActiveMeetingForNotes(null)}>Cancel</button>
+                  <button className="btn primary">Save Changes</button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Megaphone, CalendarDays, Quote, FileEdit, CheckCircle2 } from 'lucide-react';
+import { Megaphone, CalendarDays, Quote, FileEdit, CheckCircle2, Edit, Trash2 } from 'lucide-react';
 
 export default function MarketingModule({ user, showToast }) {
   const [activeTab, setActiveTab] = useState('campaigns');
@@ -16,6 +16,11 @@ export default function MarketingModule({ user, showToast }) {
   const [testiForm, setTestiForm] = useState({ client_id: '', text: '', status: 'Requested', published_url: '' });
   // Content Form
   const [contentForm, setContentForm] = useState({ title: '', platform: 'LinkedIn', due_date: '', assignee_id: '' });
+
+  // Editing state
+  const [editingCampaign, setEditingCampaign] = useState(null);
+  const [editingTestimonial, setEditingTestimonial] = useState(null);
+  const [editingContentTask, setEditingContentTask] = useState(null);
 
   const headers = {
     'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -118,6 +123,111 @@ export default function MarketingModule({ user, showToast }) {
       });
   };
 
+  const handleDeleteCampaign = (id) => {
+    if (!window.confirm("Are you sure you want to delete this campaign?")) return;
+    fetch(`/api/marketing/campaigns/${id}`, {
+      method: 'DELETE',
+      headers
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Campaign deleted successfully');
+          loadData();
+        }
+      });
+  };
+
+  const handleEditCampaignSubmit = (e) => {
+    e.preventDefault();
+    fetch(`/api/marketing/campaigns/${editingCampaign.id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(editingCampaign)
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Campaign updated successfully');
+          setEditingCampaign(null);
+          loadData();
+        }
+      });
+  };
+
+  const handleDeleteTestimonial = (id) => {
+    if (!window.confirm("Are you sure you want to delete this testimonial?")) return;
+    fetch(`/api/marketing/testimonials/${id}`, {
+      method: 'DELETE',
+      headers
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Testimonial deleted successfully');
+          loadData();
+        }
+      });
+  };
+
+  const handleEditTestimonialSubmit = (e) => {
+    e.preventDefault();
+    fetch(`/api/marketing/testimonials/${editingTestimonial.id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(editingTestimonial)
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Testimonial updated successfully');
+          setEditingTestimonial(null);
+          loadData();
+        }
+      });
+  };
+
+  const handleDeleteContentPost = (id) => {
+    if (!window.confirm("Are you sure you want to delete this content post?")) return;
+    fetch(`/api/tasks/${id}`, {
+      method: 'DELETE',
+      headers
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Content post deleted successfully');
+          loadData();
+        }
+      });
+  };
+
+  const handleEditContentPostSubmit = (e) => {
+    e.preventDefault();
+    fetch(`/api/tasks/${editingContentTask.id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        ...editingContentTask,
+        type: 'Marketing'
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Content post updated successfully');
+          setEditingContentTask(null);
+          loadData();
+        }
+      });
+  };
+
   return (
     <div className="crm-page-container">
       <div className="crm-tabs">
@@ -141,6 +251,7 @@ export default function MarketingModule({ user, showToast }) {
                       <th>Budget</th>
                       <th>Attributed Leads</th>
                       <th>ROI Margin</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -150,17 +261,35 @@ export default function MarketingModule({ user, showToast }) {
                         <tr key={c.id}>
                           <td>{c.name}</td>
                           <td className="mono">{c.channel}</td>
-                          <td className="mono">${c.budget.toLocaleString()}</td>
+                          <td className="mono">₹{c.budget.toLocaleString('en-IN')}</td>
                           <td className="mono" style={{ color: 'var(--lime-bright)', fontWeight: 600 }}>{c.leads_count || 0} Leads</td>
                           <td className="amount" style={{ color: 'var(--lime-bright)' }}>
                             {c.budget > 0 ? `${roi >= 0 ? '+' : ''}${roi}%` : '—'}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button 
+                                className="btn secondary" 
+                                style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }}
+                                onClick={() => setEditingCampaign(c)}
+                              >
+                                <Edit size={12} />
+                              </button>
+                              <button 
+                                className="btn danger" 
+                                style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }}
+                                onClick={() => handleDeleteCampaign(c.id)}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
                     })}
                     {campaigns.length === 0 && (
                       <tr>
-                        <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No active marketing campaigns.</td>
+                        <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No active marketing campaigns.</td>
                       </tr>
                     )}
                   </tbody>
@@ -187,8 +316,8 @@ export default function MarketingModule({ user, showToast }) {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Budget Allocation ($)</label>
-                  <input type="number" value={campForm.budget} onChange={e => setCampForm({...campForm, budget: parseFloat(e.target.value)})} />
+                  <label>Budget Allocation (₹)</label>
+                  <input type="number" min="0" required value={campForm.budget} onChange={e => setCampForm({...campForm, budget: parseFloat(e.target.value) || 0})} />
                 </div>
                 <button className="btn gold" style={{ width: '100%' }}>Launch Campaign</button>
               </form>
@@ -212,6 +341,7 @@ export default function MarketingModule({ user, showToast }) {
                       <th>Platform</th>
                       <th>Assignee</th>
                       <th>Status</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -226,10 +356,28 @@ export default function MarketingModule({ user, showToast }) {
                             {t.status === 'Done' ? 'Published' : t.status === 'In Progress' ? 'In Progress' : 'Drafted'}
                           </span>
                         </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button 
+                              className="btn secondary" 
+                              style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }}
+                              onClick={() => setEditingContentTask(t)}
+                            >
+                              <Edit size={12} />
+                            </button>
+                            <button 
+                              className="btn danger" 
+                              style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }}
+                              onClick={() => handleDeleteContentPost(t.id)}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '20px 0' }}>No scheduled marketing content.</td>
+                        <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '20px 0' }}>No scheduled marketing content.</td>
                       </tr>
                     )}
                   </tbody>
@@ -308,6 +456,7 @@ export default function MarketingModule({ user, showToast }) {
                       <th>Quotes Content</th>
                       <th>Status</th>
                       <th>Log: Uploaded to hyperwrike.com</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -329,11 +478,29 @@ export default function MarketingModule({ user, showToast }) {
                             </span>
                           </div>
                         </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button 
+                              className="btn secondary" 
+                              style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }}
+                              onClick={() => setEditingTestimonial(t)}
+                            >
+                              <Edit size={12} />
+                            </button>
+                            <button 
+                              className="btn danger" 
+                              style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }}
+                              onClick={() => handleDeleteTestimonial(t.id)}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                     {testimonials.length === 0 && (
                       <tr>
-                        <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No testimonials recorded.</td>
+                        <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No testimonials recorded.</td>
                       </tr>
                     )}
                   </tbody>
@@ -368,6 +535,206 @@ export default function MarketingModule({ user, showToast }) {
                 <button className="btn gold" style={{ width: '100%' }}>Log Feedback</button>
               </form>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT CAMPAIGN MODAL */}
+      {editingCampaign && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '450px' }}>
+            <div className="modal-title">Edit Campaign: {editingCampaign.name}</div>
+            <form onSubmit={handleEditCampaignSubmit}>
+              <div className="form-group">
+                <label>Campaign Name</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={editingCampaign.name} 
+                  onChange={e => setEditingCampaign({...editingCampaign, name: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Ad Channel</label>
+                <select 
+                  value={editingCampaign.channel} 
+                  onChange={e => setEditingCampaign({...editingCampaign, channel: e.target.value})}
+                >
+                  <option>LinkedIn</option>
+                  <option>Google Ads</option>
+                  <option>X Outbound</option>
+                  <option>Retargeting</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Budget Allocation (₹)</label>
+                <input 
+                  type="number" 
+                  min="0"
+                  required
+                  value={editingCampaign.budget} 
+                  onChange={e => setEditingCampaign({...editingCampaign, budget: parseFloat(e.target.value) || 0})} 
+                />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Start Date</label>
+                  <input 
+                    type="date" 
+                    value={editingCampaign.start_date || ''} 
+                    onChange={e => setEditingCampaign({...editingCampaign, start_date: e.target.value})} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label>End Date</label>
+                  <input 
+                    type="date" 
+                    value={editingCampaign.end_date || ''} 
+                    onChange={e => setEditingCampaign({...editingCampaign, end_date: e.target.value})} 
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Attributed Leads</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={editingCampaign.leads_count || 0} 
+                    onChange={e => setEditingCampaign({...editingCampaign, leads_count: parseInt(e.target.value) || 0})} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Sales Count</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={editingCampaign.sales_count || 0} 
+                    onChange={e => setEditingCampaign({...editingCampaign, sales_count: parseInt(e.target.value) || 0})} 
+                  />
+                </div>
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn secondary" onClick={() => setEditingCampaign(null)}>Cancel</button>
+                <button className="btn primary">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT CONTENT TASK MODAL */}
+      {editingContentTask && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '450px' }}>
+            <div className="modal-title">Edit Content Post</div>
+            <form onSubmit={handleEditContentPostSubmit}>
+              <div className="form-group">
+                <label>Topic / Title</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={editingContentTask.title} 
+                  onChange={e => setEditingContentTask({...editingContentTask, title: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Platform</label>
+                <select 
+                  value={editingContentTask.description || 'LinkedIn'} 
+                  onChange={e => setEditingContentTask({...editingContentTask, description: e.target.value})}
+                >
+                  <option>LinkedIn</option>
+                  <option>YouTube</option>
+                  <option>X (Twitter)</option>
+                  <option>Instagram</option>
+                  <option>Medium Blog</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Assignee Staff</label>
+                <select 
+                  required 
+                  value={editingContentTask.assignee_id || ''} 
+                  onChange={e => setEditingContentTask({...editingContentTask, assignee_id: e.target.value})}
+                >
+                  <option value="">Select staff...</option>
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Scheduled Post Date</label>
+                <input 
+                  type="date" 
+                  required 
+                  value={editingContentTask.due_date || ''} 
+                  onChange={e => setEditingContentTask({...editingContentTask, due_date: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Status</label>
+                <select 
+                  value={editingContentTask.status || 'To Do'} 
+                  onChange={e => setEditingContentTask({...editingContentTask, status: e.target.value})}
+                >
+                  <option value="To Do">Drafted</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Done">Published</option>
+                </select>
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn secondary" onClick={() => setEditingContentTask(null)}>Cancel</button>
+                <button className="btn primary">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT TESTIMONIAL MODAL */}
+      {editingTestimonial && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '450px' }}>
+            <div className="modal-title">Edit Testimonial Quote</div>
+            <form onSubmit={handleEditTestimonialSubmit}>
+              <div className="form-group">
+                <label>Select Client</label>
+                <select 
+                  required 
+                  value={editingTestimonial.client_id || ''} 
+                  onChange={e => setEditingTestimonial({...editingTestimonial, client_id: e.target.value})}
+                >
+                  <option value="">Choose client...</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Quote Content Text</label>
+                <textarea 
+                  required 
+                  rows="4" 
+                  value={editingTestimonial.text || ''} 
+                  onChange={e => setEditingTestimonial({...editingTestimonial, text: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Status</label>
+                <select 
+                  value={editingTestimonial.status || 'Requested'} 
+                  onChange={e => setEditingTestimonial({...editingTestimonial, status: e.target.value})}
+                >
+                  <option>Requested</option>
+                  <option>Received</option>
+                  <option>Published</option>
+                </select>
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn secondary" onClick={() => setEditingTestimonial(null)}>Cancel</button>
+                <button className="btn primary">Save Changes</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

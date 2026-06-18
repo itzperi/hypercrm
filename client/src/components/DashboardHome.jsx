@@ -155,7 +155,7 @@ export default function DashboardHome({ user, setCurrentPage, triggerAddProject 
 
   // Format currency values helper
   const fmt = (val) => {
-    return val.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+    return val.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
   };
 
   // --- 1. ROOT / ADMIN DASHBOARD ---
@@ -228,7 +228,7 @@ export default function DashboardHome({ user, setCurrentPage, triggerAddProject 
                         fontSize: '9.5px', 
                         color: 'var(--lime-bright)',
                         whiteSpace: 'nowrap'
-                      }}>${m.amount.toLocaleString()}</div>
+                      }}>{fmt(m.amount)}</div>
                     )}
                   </div>
                   <span style={{ 

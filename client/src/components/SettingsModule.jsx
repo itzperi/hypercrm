@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, UserPlus, ShieldAlert, Key } from 'lucide-react';
+import { Settings, UserPlus, ShieldAlert, Key, Trash2, Edit } from 'lucide-react';
 
 export default function SettingsModule({ user, showToast }) {
   const [activeTab, setActiveTab] = useState('permissions');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState('');
+  const [editingEmployee, setEditingEmployee] = useState(null);
   
   // Roles mapping
   const roles = [
@@ -57,6 +60,61 @@ export default function SettingsModule({ user, showToast }) {
   useEffect(() => {
     loadData();
   }, [selectedRole]);
+
+  const handleSystemReset = () => {
+    fetch('/api/system/reset', {
+      method: 'POST',
+      headers
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          showToast(data.error, 'error');
+        } else {
+          showToast(data.message);
+          setShowResetConfirm(false);
+          setResetConfirmText('');
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+        }
+      })
+      .catch(() => showToast('Failed to reset system database', 'error'));
+  };
+
+  const handleDeleteEmployee = (id) => {
+    if (!window.confirm("Are you sure you want to delete this employee?")) return;
+    fetch(`/api/users/${id}`, {
+      method: 'DELETE',
+      headers
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast("Employee deleted successfully");
+          loadData();
+        }
+      });
+  };
+
+  const handleEditEmployeeSubmit = (e) => {
+    e.preventDefault();
+    fetch(`/api/users/${editingEmployee.id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(editingEmployee)
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast("Employee profile updated successfully");
+          setEditingEmployee(null);
+          loadData();
+        }
+      });
+  };
 
   const handleToggle = (mod, act) => {
     const updated = { ...matrix };
@@ -124,6 +182,9 @@ export default function SettingsModule({ user, showToast }) {
       <div className="crm-tabs">
         <button className={`tab-btn ${activeTab === 'permissions' ? 'active' : ''}`} onClick={() => setActiveTab('permissions')}><ShieldAlert size={14} /> Permissions Matrix</button>
         <button className={`tab-btn ${activeTab === 'employees' ? 'active' : ''}`} onClick={() => setActiveTab('employees')}><UserPlus size={14} /> Employee Directory</button>
+        {user.role === 'SuperAdmin' && (
+          <button className={`tab-btn ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}><Settings size={14} /> System Database</button>
+        )}
       </div>
 
       {/* --- SUBTAB: PERMISSIONS MATRIX --- */}
@@ -201,6 +262,7 @@ export default function SettingsModule({ user, showToast }) {
                       <th>Designation</th>
                       <th>Department</th>
                       {user.role === 'SuperAdmin' && <th>Monthly Salary</th>}
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -210,7 +272,27 @@ export default function SettingsModule({ user, showToast }) {
                         <td className="mono">{emp.username}</td>
                         <td>{emp.designation}</td>
                         <td><span className="badge info">{emp.department}</span></td>
-                        {user.role === 'SuperAdmin' && <td className="amount">${emp.salary.toLocaleString()}</td>}
+                        {user.role === 'SuperAdmin' && <td className="amount">₹{emp.salary.toLocaleString('en-IN')}</td>}
+                        <td>
+                          {emp.username !== 'Peri' && (
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button 
+                                className="btn secondary" 
+                                style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }}
+                                onClick={() => handleEditEmployeeClick(emp)}
+                              >
+                                <Edit size={12} />
+                              </button>
+                              <button 
+                                className="btn danger" 
+                                style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }}
+                                onClick={() => handleDeleteEmployee(emp.id)}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -262,11 +344,131 @@ export default function SettingsModule({ user, showToast }) {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Starting Base Salary ($)</label>
-                  <input type="number" required value={empForm.salary} onChange={e => setEmpForm({...empForm, salary: parseFloat(e.target.value)})} />
+                  <label>Starting Base Salary (₹)</label>
+                  <input type="number" required min="0" value={empForm.salary} onChange={e => setEmpForm({...empForm, salary: parseFloat(e.target.value)})} />
                 </div>
                 <button className="btn gold" style={{ width: '100%' }}>Register Employee</button>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- SUBTAB: SYSTEM RESET --- */}
+      {activeTab === 'system' && user.role === 'SuperAdmin' && (
+        <div className="panel-card" style={{ border: '1px solid var(--alert)' }}>
+          <div className="panel-card-title" style={{ color: 'var(--alert)' }}>
+            System Database Reset (Danger Zone)
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13.5px', marginBottom: '20px', lineHeight: '1.6' }}>
+            Warning: Performing a system reset will permanently delete all logs, projects, tasks, attendance lists, leaves, documents, revenues, expenses, clients, and all user accounts (excluding your CEO/Root account <strong>Peri</strong>). This action cannot be undone.
+          </p>
+          
+          <button className="btn danger" onClick={() => setShowResetConfirm(true)} style={{ padding: '10px 20px' }}>
+            Reset System Database
+          </button>
+        </div>
+      )}
+
+      {/* EDIT EMPLOYEE PROFILE MODAL */}
+      {editingEmployee && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '450px' }}>
+            <div className="modal-title">Edit Employee Profile: {editingEmployee.name}</div>
+            <form onSubmit={handleEditEmployeeSubmit}>
+              <div className="form-group">
+                <label>Full Employee Name</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={editingEmployee.name} 
+                  onChange={e => setEditingEmployee({...editingEmployee, name: e.target.value})} 
+                />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Designation Role</label>
+                  <select 
+                    value={editingEmployee.designation} 
+                    onChange={e => setEditingEmployee({
+                      ...editingEmployee, 
+                      designation: e.target.value, 
+                      department: e.target.value.includes('Developer') ? 'Development' : e.target.value.includes('Sales') ? 'Sales' : 'Marketing',
+                      role: e.target.value === 'Operations Admin' ? 'Admin' : 'Employee'
+                    })}
+                  >
+                    <option>Junior Developer</option>
+                    <option>Lead Developer</option>
+                    <option>Project Manager</option>
+                    <option>Sales Executive</option>
+                    <option>Marketing Executive</option>
+                    <option>Operations Admin</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Department</label>
+                  <input type="text" readOnly value={editingEmployee.department || ''} />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Reporting Manager</label>
+                <select 
+                  value={editingEmployee.reporting_manager_id || ''} 
+                  onChange={e => setEditingEmployee({...editingEmployee, reporting_manager_id: e.target.value || null})}
+                >
+                  <option value="">No manager (Reports directly to CEO)</option>
+                  {employees.filter(u => u.id !== editingEmployee.id && (u.designation.includes('Lead') || u.designation.includes('Manager') || u.role === 'SuperAdmin')).map(u => (
+                    <option key={u.id} value={u.id}>{u.name} ({u.designation})</option>
+                  ))}
+                </select>
+              </div>
+              {user.role === 'SuperAdmin' && (
+                <div className="form-group">
+                  <label>Monthly Salary (₹)</label>
+                  <input 
+                    type="number" 
+                    required 
+                    min="0"
+                    value={editingEmployee.salary || 0} 
+                    onChange={e => setEditingEmployee({...editingEmployee, salary: parseFloat(e.target.value)})} 
+                  />
+                </div>
+              )}
+              <div className="form-actions">
+                <button type="button" className="btn secondary" onClick={() => setEditingEmployee(null)}>Cancel</button>
+                <button className="btn primary">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SYSTEM RESET DOUBLE-CONFIRMATION MODAL */}
+      {showResetConfirm && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '400px' }}>
+            <div className="modal-title" style={{ color: 'var(--alert)' }}>⚠️ Confirm Full System Reset</div>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '15px', lineHeight: '1.45' }}>
+              To verify that you want to delete all database entries and start completely fresh with only the <strong>Peri</strong> profile, please type <strong>RESET</strong> in the input field below:
+            </p>
+            <div className="form-group">
+              <input 
+                type="text" 
+                placeholder="Type RESET here"
+                value={resetConfirmText}
+                onChange={e => setResetConfirmText(e.target.value)}
+                style={{ border: '1px solid var(--alert)' }}
+              />
+            </div>
+            <div className="form-actions">
+              <button className="btn secondary" onClick={() => { setShowResetConfirm(false); setResetConfirmText(''); }}>Cancel</button>
+              <button 
+                className="btn danger" 
+                disabled={resetConfirmText !== 'RESET'}
+                onClick={handleSystemReset}
+              >
+                Perform Reset
+              </button>
             </div>
           </div>
         </div>

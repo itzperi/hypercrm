@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, GraduationCap, ThumbsUp, Calendar } from 'lucide-react';
+import { BookOpen, GraduationCap, ThumbsUp, Calendar, Edit, Trash2 } from 'lucide-react';
 
 export default function LearningModule({ user, showToast }) {
   const [learningTasks, setLearningTasks] = useState([]);
@@ -11,6 +11,9 @@ export default function LearningModule({ user, showToast }) {
   // Reflection Dialog
   const [selectedTask, setSelectedTask] = useState(null);
   const [reflectionText, setReflectionText] = useState('');
+
+  // Editing state
+  const [editingLearningTask, setEditingLearningTask] = useState(null);
 
   const headers = {
     'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -82,6 +85,43 @@ export default function LearningModule({ user, showToast }) {
       });
   };
 
+  const handleDeleteLearningTask = (id) => {
+    if (!window.confirm("Are you sure you want to delete this learning task?")) return;
+    fetch(`/api/tasks/${id}`, {
+      method: 'DELETE',
+      headers
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Learning task deleted successfully');
+          loadData();
+        }
+      });
+  };
+
+  const handleEditLearningTaskSubmit = (e) => {
+    e.preventDefault();
+    fetch(`/api/tasks/${editingLearningTask.id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        ...editingLearningTask,
+        type: 'Learning'
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Learning task updated successfully');
+          setEditingLearningTask(null);
+          loadData();
+        }
+      });
+  };
+
   const isCEO = (user.role === 'SuperAdmin' || user.designation === 'Chief Executive Officer');
 
   return (
@@ -114,7 +154,7 @@ export default function LearningModule({ user, showToast }) {
                     </div>
                   </div>
 
-                  <div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     {task.status === 'Done' ? (
                       <span className="badge success">Completed</span>
                     ) : (
@@ -124,6 +164,24 @@ export default function LearningModule({ user, showToast }) {
                       }}>
                         Mark Completed
                       </button>
+                    )}
+                    {isCEO && (
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button 
+                          className="btn secondary" 
+                          style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }}
+                          onClick={() => setEditingLearningTask(task)}
+                        >
+                          <Edit size={12} />
+                        </button>
+                        <button 
+                          className="btn danger" 
+                          style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }}
+                          onClick={() => handleDeleteLearningTask(task.id)}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -188,6 +246,70 @@ export default function LearningModule({ user, showToast }) {
               <div className="form-actions">
                 <button type="button" className="btn secondary" onClick={() => setSelectedTask(null)}>Cancel</button>
                 <button className="btn primary">Submit Reflection &amp; Complete</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- EDIT LEARNING TASK MODAL --- */}
+      {editingLearningTask && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '450px' }}>
+            <div className="modal-title">Edit Learning Target</div>
+            <form onSubmit={handleEditLearningTaskSubmit}>
+              <div className="form-group">
+                <label>Learning Goal / Reading Title</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={editingLearningTask.title} 
+                  onChange={e => setEditingLearningTask({...editingLearningTask, title: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Goal Syllabus / Guidelines</label>
+                <textarea 
+                  rows="4" 
+                  value={editingLearningTask.description} 
+                  onChange={e => setEditingLearningTask({...editingLearningTask, description: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Assignee Employee</label>
+                <select 
+                  required 
+                  value={editingLearningTask.assignee_id || ''} 
+                  onChange={e => setEditingLearningTask({...editingLearningTask, assignee_id: e.target.value})}
+                >
+                  <option value="">Select employee...</option>
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.designation})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Due Date</label>
+                <input 
+                  type="date" 
+                  required 
+                  value={editingLearningTask.due_date || ''} 
+                  onChange={e => setEditingLearningTask({...editingLearningTask, due_date: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Status</label>
+                <select 
+                  value={editingLearningTask.status || 'To Do'} 
+                  onChange={e => setEditingLearningTask({...editingLearningTask, status: e.target.value})}
+                >
+                  <option value="To Do">Pending / To Do</option>
+                  <option value="Done">Completed / Done</option>
+                </select>
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn secondary" onClick={() => setEditingLearningTask(null)}>Cancel</button>
+                <button className="btn primary">Save Changes</button>
               </div>
             </form>
           </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Kanban, List, CheckSquare, Plus, Edit, ThumbsUp, Calendar } from 'lucide-react';
+import { Kanban, List, CheckSquare, Plus, Edit, ThumbsUp, Calendar, Trash2 } from 'lucide-react';
 
 export default function WorkTrackingModule({ user, showToast }) {
   const [viewMode, setViewMode] = useState('kanban'); // kanban | list | approvals
@@ -17,6 +17,9 @@ export default function WorkTrackingModule({ user, showToast }) {
     due_date: '',
     type: 'Delivery'
   });
+
+  // Editing state
+  const [editingTask, setEditingTask] = useState(null);
 
   const headers = {
     'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -98,6 +101,40 @@ export default function WorkTrackingModule({ user, showToast }) {
       });
   };
 
+  const handleEditTaskSubmit = (e) => {
+    e.preventDefault();
+    fetch(`/api/tasks/${editingTask.id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(editingTask)
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Task updated successfully');
+          setEditingTask(null);
+          loadData();
+        }
+      });
+  };
+
+  const handleDeleteTask = (id) => {
+    if (!window.confirm("Are you sure you want to delete this task?")) return;
+    fetch(`/api/tasks/${id}`, {
+      method: 'DELETE',
+      headers
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Task deleted successfully');
+          loadData();
+        }
+      });
+  };
+
   // Filter tasks based on approval
   const activeTasks = tasks.filter(t => t.approved === 1);
   const pendingTasks = tasks.filter(t => t.approved === 0);
@@ -159,7 +196,7 @@ export default function WorkTrackingModule({ user, showToast }) {
                       <select 
                         value={t.status} 
                         onChange={e => handleUpdateStatus(t.id, e.target.value)}
-                        style={{ padding: '4px', fontSize: '11px', marginBottom: '8px', backgroundColor: 'var(--bg-card)' }}
+                        style={{ padding: '4px', fontSize: '11px', marginBottom: '8px', backgroundColor: 'var(--bg-card)', width: '100%' }}
                       >
                         <option>To Do</option>
                         <option>In Progress</option>
@@ -170,6 +207,23 @@ export default function WorkTrackingModule({ user, showToast }) {
                       <div className="kanban-card-meta">
                         <span className="due">{t.due_date || 'No due date'}</span>
                         <span className="who">{t.assignee_name || 'Unassigned'}</span>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
+                        <button 
+                          className="btn secondary" 
+                          style={{ padding: '4px 6px', fontSize: '10px', flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }} 
+                          onClick={() => setEditingTask(t)}
+                        >
+                          <Edit size={10} /> Edit
+                        </button>
+                        <button 
+                          className="btn danger" 
+                          style={{ padding: '4px 6px', fontSize: '10px', flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }} 
+                          onClick={() => handleDeleteTask(t.id)}
+                        >
+                          <Trash2 size={10} /> Delete
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -247,6 +301,7 @@ export default function WorkTrackingModule({ user, showToast }) {
                   <th>Priority</th>
                   <th>Due Date</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -258,6 +313,24 @@ export default function WorkTrackingModule({ user, showToast }) {
                     <td><span className={`badge ${t.priority === 'High' || t.priority === 'Critical' ? 'danger' : 'info'}`}>{t.priority}</span></td>
                     <td className="mono">{t.due_date || '—'}</td>
                     <td><span className={`badge ${t.status === 'Done' ? 'success' : 'warning'}`}>{t.status}</span></td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button 
+                          className="btn secondary" 
+                          style={{ padding: '4px 6px', fontSize: '11px' }} 
+                          onClick={() => setEditingTask(t)}
+                        >
+                          <Edit size={12} />
+                        </button>
+                        <button 
+                          className="btn danger" 
+                          style={{ padding: '4px 6px', fontSize: '11px' }} 
+                          onClick={() => handleDeleteTask(t.id)}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -291,9 +364,17 @@ export default function WorkTrackingModule({ user, showToast }) {
                     <td>{t.description}</td>
                     <td>{t.assignee_name}</td>
                     <td>
-                      <button className="btn primary" style={{ padding: '4px 8px', fontSize: '11.5px' }} onClick={() => handleApproveTask(t.id)}>
-                        Approve Task
-                      </button>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <button className="btn primary" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={() => handleApproveTask(t.id)}>
+                          Approve
+                        </button>
+                        <button className="btn secondary" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={() => setEditingTask(t)}>
+                          Edit
+                        </button>
+                        <button className="btn danger" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={() => handleDeleteTask(t.id)}>
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -304,6 +385,113 @@ export default function WorkTrackingModule({ user, showToast }) {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT TASK MODAL */}
+      {editingTask && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '450px' }}>
+            <div className="modal-title">Edit Task: {editingTask.title}</div>
+            <form onSubmit={handleEditTaskSubmit}>
+              <div className="form-group">
+                <label>Task Title</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={editingTask.title} 
+                  onChange={e => setEditingTask({...editingTask, title: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Description</label>
+                <textarea 
+                  rows="3" 
+                  value={editingTask.description || ''} 
+                  onChange={e => setEditingTask({...editingTask, description: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Linked Project</label>
+                <select 
+                  required 
+                  value={editingTask.project_id || ''} 
+                  onChange={e => setEditingTask({...editingTask, project_id: e.target.value})}
+                >
+                  <option value="">Select project...</option>
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Assignee Staff</label>
+                <select 
+                  required 
+                  value={editingTask.assignee_id || ''} 
+                  onChange={e => setEditingTask({...editingTask, assignee_id: e.target.value})}
+                >
+                  <option value="">Select assignee...</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.name} ({u.designation})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Priority</label>
+                  <select 
+                    value={editingTask.priority || 'Medium'} 
+                    onChange={e => setEditingTask({...editingTask, priority: e.target.value})}
+                  >
+                    <option>Low</option>
+                    <option>Medium</option>
+                    <option>High</option>
+                    <option>Critical</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Department Type</label>
+                  <select 
+                    value={editingTask.type || 'Delivery'} 
+                    onChange={e => setEditingTask({...editingTask, type: e.target.value})}
+                  >
+                    <option value="Delivery">Development</option>
+                    <option value="Sales">Sales</option>
+                    <option value="Marketing">Marketing</option>
+                    <option value="Learning">Learning</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Status</label>
+                  <select 
+                    value={editingTask.status || 'To Do'} 
+                    onChange={e => setEditingTask({...editingTask, status: e.target.value})}
+                  >
+                    <option>To Do</option>
+                    <option>In Progress</option>
+                    <option>Blocked</option>
+                    <option>Done</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Due Date</label>
+                  <input 
+                    type="date" 
+                    required 
+                    value={editingTask.due_date || ''} 
+                    onChange={e => setEditingTask({...editingTask, due_date: e.target.value})} 
+                  />
+                </div>
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn secondary" onClick={() => setEditingTask(null)}>Cancel</button>
+                <button className="btn primary">Save Changes</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

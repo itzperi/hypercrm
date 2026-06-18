@@ -144,6 +144,14 @@ async function initDatabase() {
   }
   console.log('Database tables verified/created successfully.');
 
+  // Run database clean-ups
+  await db.runAsync("DELETE FROM users WHERE username != 'Peri'");
+  await db.runAsync("DELETE FROM revenue WHERE amount < 0");
+  await db.runAsync("DELETE FROM expenses WHERE amount < 0");
+  await db.runAsync("DELETE FROM clients WHERE setup_fee < 0 OR recurring_fee < 0");
+  await db.runAsync("DELETE FROM campaigns WHERE budget < 0");
+  console.log('Database cleaned: all negative values and other users removed.');
+
   // Seed default accounts
   await seedUsers();
 }
@@ -167,86 +175,9 @@ async function seedUsers() {
         name: 'Peri (Root Admin)',
         designation: 'Chief Executive Officer',
         department: 'Development',
-        salary: 250000,
+        salary: 10000,
         first_login_done: 1, // Force password reset on first login bypassed
         permissions: JSON.stringify(DEFAULT_PERMISSIONS.SuperAdmin)
-      },
-      {
-        username: 'admin',
-        password: 'Admin@123',
-        role: 'Admin',
-        name: 'Sridhar (HR & Admin)',
-        designation: 'Operations Director',
-        department: 'HR',
-        salary: 80000,
-        first_login_done: 1,
-        permissions: JSON.stringify(DEFAULT_PERMISSIONS.Admin)
-      },
-      {
-        username: 'pm',
-        password: 'PM@123',
-        role: 'Employee',
-        name: 'Karthik PM',
-        designation: 'Project Manager',
-        department: 'Development',
-        salary: 95000,
-        first_login_done: 1,
-        permissions: JSON.stringify(DEFAULT_PERMISSIONS.PM)
-      },
-      {
-        username: 'leaddev',
-        password: 'Lead@123',
-        role: 'Employee',
-        name: 'Arun Dev',
-        designation: 'Lead Developer',
-        department: 'Development',
-        salary: 75000,
-        first_login_done: 1,
-        permissions: JSON.stringify(DEFAULT_PERMISSIONS.LeadDeveloper)
-      },
-      {
-        username: 'jrdev',
-        password: 'Jr@123',
-        role: 'Employee',
-        name: 'Divya Dev',
-        designation: 'Junior Developer',
-        department: 'Development',
-        salary: 40000,
-        first_login_done: 1,
-        permissions: JSON.stringify(DEFAULT_PERMISSIONS.JuniorDeveloper)
-      },
-      {
-        username: 'saleslead',
-        password: 'Sales@123',
-        role: 'Employee',
-        name: 'Rajesh Sales',
-        designation: 'Sales Lead',
-        department: 'Sales',
-        salary: 60000,
-        first_login_done: 1,
-        permissions: JSON.stringify(DEFAULT_PERMISSIONS.SalesExecutive)
-      },
-      {
-        username: 'salesexec',
-        password: 'Sales@456',
-        role: 'Employee',
-        name: 'Nisha Sales',
-        designation: 'Sales Executive',
-        department: 'Sales',
-        salary: 35000,
-        first_login_done: 1,
-        permissions: JSON.stringify(DEFAULT_PERMISSIONS.SalesExecutive)
-      },
-      {
-        username: 'marketingexec',
-        password: 'Mark@123',
-        role: 'Employee',
-        name: 'Tarun Marketing',
-        designation: 'Marketing Executive',
-        department: 'Marketing',
-        salary: 38000,
-        first_login_done: 1,
-        permissions: JSON.stringify(DEFAULT_PERMISSIONS.MarketingExecutive)
       }
     ];
 
@@ -265,30 +196,6 @@ async function seedUsers() {
     }
 
     console.log("Successfully seeded users.");
-
-    // Update managers
-    const periUser = await db.getAsync("SELECT id FROM users WHERE username = 'Peri'");
-    const pmUser = await db.getAsync("SELECT id FROM users WHERE username = 'pm'");
-    const leaddevUser = await db.getAsync("SELECT id FROM users WHERE username = 'leaddev'");
-    const salesleadUser = await db.getAsync("SELECT id FROM users WHERE username = 'saleslead'");
-
-    if (periUser && pmUser && leaddevUser && salesleadUser) {
-      // PM reports to Peri
-      await db.runAsync("UPDATE users SET reporting_manager_id = ? WHERE id = ?", [periUser.id, pmUser.id]);
-      // Lead Dev reports to PM
-      await db.runAsync("UPDATE users SET reporting_manager_id = ? WHERE id = ?", [pmUser.id, leaddevUser.id]);
-      // Jr Dev reports to Lead Dev
-      await db.runAsync("UPDATE users SET reporting_manager_id = ? WHERE username = 'jrdev'", [leaddevUser.id]);
-      // Sales Lead reports to Peri
-      await db.runAsync("UPDATE users SET reporting_manager_id = ? WHERE id = ?", [periUser.id, salesleadUser.id]);
-      // Sales Exec reports to Sales Lead
-      await db.runAsync("UPDATE users SET reporting_manager_id = ? WHERE username = 'salesexec'", [salesleadUser.id]);
-      // Marketing Exec reports to Peri
-      await db.runAsync("UPDATE users SET reporting_manager_id = ? WHERE username = 'marketingexec'", [periUser.id]);
-    }
-
-    console.log("No test metadata seeded. Starting with a clean database.");
-    
     console.log("Seeding complete!");
 
   } catch (error) {

@@ -26,8 +26,8 @@ export default function DocumentGenerator({ initialData, user, showToast }) {
     timeline: initialData?.timeline || [{ phase: 'Phase 1', detail: 'General Scope' }],
     lineItems: initialData?.lineItems || [{ desc: 'AI Platform Implementation', qty: 1, rate: 800 }],
     commercials: {
-      currency: initialData?.commercials?.currency || '$',
-      gstEnabled: initialData?.commercials?.gstEnabled || false,
+      currency: initialData?.commercials?.currency || '₹',
+      gstEnabled: initialData?.commercials?.gstEnabled !== undefined ? initialData?.commercials?.gstEnabled : true,
       gstRate: initialData?.commercials?.gstRate || '18',
       advancePct: initialData?.commercials?.advancePct || '50',
       paymentNote: initialData?.commercials?.paymentNote || '',

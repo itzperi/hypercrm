@@ -166,6 +166,9 @@ app.post('/api/users', authenticateToken, async (req, res) => {
   if (!username || !password || !role || !name) {
     return res.status(400).json({ error: 'Required fields missing' });
   }
+  if (salary !== undefined && salary < 0) {
+    return res.status(400).json({ error: 'Salary cannot be negative' });
+  }
 
   try {
     const salt = await bcrypt.genSalt(10);
@@ -202,6 +205,10 @@ app.put('/api/users/:id', authenticateToken, async (req, res) => {
 
   const { id } = req.params;
   const { name, designation, department, reporting_manager_id, salary, permissions, role } = req.body;
+  
+  if (salary !== undefined && salary < 0) {
+    return res.status(400).json({ error: 'Salary cannot be negative' });
+  }
 
   try {
     const userToEdit = await db.getAsync('SELECT username, role FROM users WHERE id = ?', [id]);
@@ -269,7 +276,8 @@ app.get('/api/revenue', authenticateToken, checkPermission('sales', 'view'), asy
 
 app.post('/api/revenue', authenticateToken, checkPermission('sales', 'create'), async (req, res) => {
   const { amount, date, client_id, payment_method, invoice_ref, source } = req.body;
-  if (!amount || !date) return res.status(400).json({ error: 'Amount and Date are required' });
+  if (amount === undefined || !date) return res.status(400).json({ error: 'Amount and Date are required' });
+  if (amount < 0) return res.status(400).json({ error: 'Amount cannot be negative' });
 
   try {
     const result = await db.runAsync(
@@ -296,6 +304,34 @@ app.post('/api/revenue', authenticateToken, checkPermission('sales', 'create'), 
   }
 });
 
+app.put('/api/revenue/:id', authenticateToken, checkPermission('sales', 'edit'), async (req, res) => {
+  const { id } = req.params;
+  const { amount, date, client_id, payment_method, invoice_ref, source } = req.body;
+  if (amount === undefined || !date) return res.status(400).json({ error: 'Amount and Date are required' });
+  if (amount < 0) return res.status(400).json({ error: 'Amount cannot be negative' });
+
+  try {
+    await db.runAsync(
+      `UPDATE revenue SET amount = ?, date = ?, client_id = ?, payment_method = ?, invoice_ref = ?, source = ?
+       WHERE id = ?`,
+      [amount, date, client_id || null, payment_method || '', invoice_ref || '', source || 'recurring', id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/revenue/:id', authenticateToken, checkPermission('sales', 'delete'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.runAsync('DELETE FROM revenue WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- EXPENSE TRACKING ---
 app.get('/api/expenses', authenticateToken, checkPermission('accounts', 'view'), async (req, res) => {
   try {
@@ -313,7 +349,8 @@ app.get('/api/expenses', authenticateToken, checkPermission('accounts', 'view'),
 
 app.post('/api/expenses', authenticateToken, checkPermission('accounts', 'create'), async (req, res) => {
   const { amount, date, category, paid_to } = req.body;
-  if (!amount || !date || !category) return res.status(400).json({ error: 'Missing fields' });
+  if (amount === undefined || !date || !category) return res.status(400).json({ error: 'Missing fields' });
+  if (amount < 0) return res.status(400).json({ error: 'Amount cannot be negative' });
 
   try {
     const result = await db.runAsync(
@@ -322,6 +359,34 @@ app.post('/api/expenses', authenticateToken, checkPermission('accounts', 'create
       [amount, date, category, paid_to || '', req.user.id]
     );
     res.json({ success: true, expenseId: result.lastID });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/expenses/:id', authenticateToken, checkPermission('accounts', 'edit'), async (req, res) => {
+  const { id } = req.params;
+  const { amount, date, category, paid_to } = req.body;
+  if (amount === undefined || !date || !category) return res.status(400).json({ error: 'Missing fields' });
+  if (amount < 0) return res.status(400).json({ error: 'Amount cannot be negative' });
+
+  try {
+    await db.runAsync(
+      `UPDATE expenses SET amount = ?, date = ?, category = ?, paid_to = ?
+       WHERE id = ?`,
+      [amount, date, category, paid_to || '', id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/expenses/:id', authenticateToken, checkPermission('accounts', 'delete'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.runAsync('DELETE FROM expenses WHERE id = ?', [id]);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -356,6 +421,9 @@ app.get('/api/clients', authenticateToken, checkPermission('sales', 'view'), asy
 app.post('/api/clients', authenticateToken, checkPermission('sales', 'create'), async (req, res) => {
   const { name, company, country, status, account_owner_id, address, gstin, setup_fee, recurring_fee, contract_ref, start_date } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
+  if ((setup_fee !== undefined && setup_fee < 0) || (recurring_fee !== undefined && recurring_fee < 0)) {
+    return res.status(400).json({ error: 'Fees cannot be negative' });
+  }
 
   try {
     // Check if we need to auto-create portal account
@@ -395,6 +463,9 @@ app.post('/api/clients', authenticateToken, checkPermission('sales', 'create'), 
 app.put('/api/clients/:id', authenticateToken, checkPermission('sales', 'edit'), async (req, res) => {
   const { id } = req.params;
   const { name, company, country, status, account_owner_id, address, gstin, setup_fee, recurring_fee, contract_ref, start_date, health } = req.body;
+  if ((setup_fee !== undefined && setup_fee < 0) || (recurring_fee !== undefined && recurring_fee < 0)) {
+    return res.status(400).json({ error: 'Fees cannot be negative' });
+  }
 
   try {
     await db.runAsync(
@@ -402,6 +473,20 @@ app.put('/api/clients/:id', authenticateToken, checkPermission('sales', 'edit'),
        WHERE id = ?`,
       [name, company, country, status, account_owner_id || null, address, gstin, setup_fee || 0.0, recurring_fee || 0.0, contract_ref, start_date, health || 'on-track', id]
     );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/clients/:id', authenticateToken, checkPermission('sales', 'delete'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const client = await db.getAsync('SELECT portal_user_id FROM clients WHERE id = ?', [id]);
+    await db.runAsync('DELETE FROM clients WHERE id = ?', [id]);
+    if (client && client.portal_user_id) {
+      await db.runAsync('DELETE FROM users WHERE id = ?', [client.portal_user_id]);
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -486,6 +571,19 @@ app.put('/api/projects/:id', authenticateToken, checkPermission('development', '
       }
     }
 
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/projects/:id', authenticateToken, checkPermission('development', 'delete'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.runAsync('DELETE FROM projects WHERE id = ?', [id]);
+    await db.runAsync('DELETE FROM project_members WHERE project_id = ?', [id]);
+    await db.runAsync('DELETE FROM tasks WHERE project_id = ?', [id]);
+    await db.runAsync('DELETE FROM messages WHERE project_id = ?', [id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -618,13 +716,34 @@ app.post('/api/tasks', authenticateToken, async (req, res) => {
   }
 });
 
-app.put('/api/tasks/:id', authenticateToken, checkPermission('development', 'edit'), async (req, res) => {
+app.put('/api/tasks/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { title, description, assignee_id, priority, due_date, status, checklist, approved } = req.body;
+  const { title, description, assignee_id, priority, due_date, status, checklist, approved, type } = req.body;
 
   try {
     const task = await db.getAsync('SELECT * FROM tasks WHERE id = ?', [id]);
     if (!task) return res.status(404).json({ error: 'Task not found' });
+
+    // Dynamic module permission verification
+    const taskType = type || task.type || 'Delivery';
+    const moduleMap = {
+      'Delivery': 'development',
+      'Learning': 'learning',
+      'Marketing': 'marketing',
+      'Sales': 'sales',
+      'Bug': 'development'
+    };
+    const targetModule = moduleMap[taskType] || 'development';
+
+    const user = await db.getAsync('SELECT role, permissions FROM users WHERE id = ?', [req.user.id]);
+    if (!user) return res.status(403).json({ error: 'User not found' });
+
+    if (user.role !== 'SuperAdmin' && user.role !== 'Admin') {
+      const permissions = JSON.parse(user.permissions || '{}');
+      if (!permissions[targetModule] || !permissions[targetModule].edit) {
+        return res.status(403).json({ error: `Permission denied: Cannot edit ${taskType} tasks.` });
+      }
+    }
 
     // Handle task approval notification
     if (task.approved === 0 && approved === 1 && task.assignee_id) {
@@ -653,9 +772,32 @@ app.put('/api/tasks/:id', authenticateToken, checkPermission('development', 'edi
   }
 });
 
-app.delete('/api/tasks/:id', authenticateToken, checkPermission('development', 'delete'), async (req, res) => {
+app.delete('/api/tasks/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
+    const task = await db.getAsync('SELECT * FROM tasks WHERE id = ?', [id]);
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+
+    const taskType = task.type || 'Delivery';
+    const moduleMap = {
+      'Delivery': 'development',
+      'Learning': 'learning',
+      'Marketing': 'marketing',
+      'Sales': 'sales',
+      'Bug': 'development'
+    };
+    const targetModule = moduleMap[taskType] || 'development';
+
+    const user = await db.getAsync('SELECT role, permissions FROM users WHERE id = ?', [req.user.id]);
+    if (!user) return res.status(403).json({ error: 'User not found' });
+
+    if (user.role !== 'SuperAdmin' && user.role !== 'Admin') {
+      const permissions = JSON.parse(user.permissions || '{}');
+      if (!permissions[targetModule] || !permissions[targetModule].delete) {
+        return res.status(403).json({ error: `Permission denied: Cannot delete ${taskType} tasks.` });
+      }
+    }
+
     await db.runAsync('DELETE FROM tasks WHERE id = ?', [id]);
     res.json({ success: true });
   } catch (err) {
@@ -855,6 +997,16 @@ app.put('/api/leads/:id', authenticateToken, checkPermission('sales', 'edit'), a
   }
 });
 
+app.delete('/api/leads/:id', authenticateToken, checkPermission('sales', 'delete'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.runAsync('DELETE FROM leads WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- ATTENDANCE SHIFT (9:00 AM - 4:30 PM) ---
 app.get('/api/attendance', authenticateToken, async (req, res) => {
   try {
@@ -931,6 +1083,68 @@ app.post('/api/attendance/clock-out', authenticateToken, async (req, res) => {
   }
 });
 
+app.post('/api/attendance', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'SuperAdmin' && req.user.role !== 'Admin') {
+    return res.status(403).json({ error: 'Only admins can manually log attendance.' });
+  }
+
+  const { user_id, date, clock_in, clock_out, status } = req.body;
+  if (!user_id || !date || !status) return res.status(400).json({ error: 'User ID, Date, and Status are required' });
+
+  try {
+    const existing = await db.getAsync('SELECT id FROM attendance WHERE user_id = ? AND date = ?', [user_id, date]);
+    if (existing) {
+      await db.runAsync(
+        `UPDATE attendance SET clock_in = ?, clock_out = ?, status = ? WHERE id = ?`,
+        [clock_in || null, clock_out || null, status, existing.id]
+      );
+      return res.json({ success: true, message: 'Attendance updated.' });
+    }
+
+    await db.runAsync(
+      `INSERT INTO attendance (user_id, date, clock_in, clock_out, status)
+       VALUES (?, ?, ?, ?, ?)`,
+      [user_id, date, clock_in || null, clock_out || null, status]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/attendance/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'SuperAdmin' && req.user.role !== 'Admin') {
+    return res.status(403).json({ error: 'Only admins can modify attendance logs.' });
+  }
+
+  const { id } = req.params;
+  const { date, clock_in, clock_out, status } = req.body;
+
+  try {
+    await db.runAsync(
+      `UPDATE attendance SET date = ?, clock_in = ?, clock_out = ?, status = ? WHERE id = ?`,
+      [date, clock_in || null, clock_out || null, status, id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/attendance/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'SuperAdmin' && req.user.role !== 'Admin') {
+    return res.status(403).json({ error: 'Only admins can delete attendance logs.' });
+  }
+
+  const { id } = req.params;
+  try {
+    await db.runAsync('DELETE FROM attendance WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- LEAVE WORKFLOWS ---
 app.get('/api/leaves', authenticateToken, async (req, res) => {
   try {
@@ -979,21 +1193,24 @@ app.post('/api/leaves', authenticateToken, async (req, res) => {
 });
 
 app.put('/api/leaves/:id', authenticateToken, async (req, res) => {
-  if (req.user.role !== 'SuperAdmin' && req.user.role !== 'Admin') {
-    return res.status(403).json({ error: 'Only admins can approve leaves.' });
-  }
-
   const { id } = req.params;
-  const { status } = req.body; // Approved or Rejected
+  const { status, start_date, end_date, reason } = req.body;
 
   try {
-    await db.runAsync(
-      'UPDATE leave_requests SET status = ?, approved_by = ? WHERE id = ?',
-      [status, req.user.id, id]
-    );
-
     const leave = await db.getAsync('SELECT * FROM leave_requests WHERE id = ?', [id]);
-    if (leave) {
+    if (!leave) return res.status(404).json({ error: 'Leave request not found' });
+
+    // Admin-level approval update
+    if (status !== undefined) {
+      if (req.user.role !== 'SuperAdmin' && req.user.role !== 'Admin') {
+        return res.status(403).json({ error: 'Only admins can approve/reject leaves.' });
+      }
+
+      await db.runAsync(
+        'UPDATE leave_requests SET status = ?, approved_by = ? WHERE id = ?',
+        [status, req.user.id, id]
+      );
+
       await createNotification(
         leave.user_id,
         `Leave Request ${status}`,
@@ -1017,8 +1234,39 @@ app.put('/api/leaves/:id', authenticateToken, async (req, res) => {
           current.setDate(current.getDate() + 1);
         }
       }
+      return res.json({ success: true });
     }
 
+    // General user editing (only if pending, or if Admin)
+    if (leave.status !== 'Pending' && req.user.role !== 'SuperAdmin' && req.user.role !== 'Admin') {
+      return res.status(400).json({ error: 'Cannot edit an approved/rejected leave request.' });
+    }
+    if (leave.user_id !== req.user.id && req.user.role !== 'SuperAdmin' && req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Unauthorized to edit this leave request.' });
+    }
+
+    await db.runAsync(
+      'UPDATE leave_requests SET start_date = ?, end_date = ?, reason = ? WHERE id = ?',
+      [start_date || leave.start_date, end_date || leave.end_date, reason !== undefined ? reason : leave.reason, id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/leaves/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const leave = await db.getAsync('SELECT user_id, status FROM leave_requests WHERE id = ?', [id]);
+    if (!leave) return res.status(404).json({ error: 'Leave request not found' });
+
+    if (req.user.role !== 'SuperAdmin' && req.user.role !== 'Admin' && leave.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to delete this leave request.' });
+    }
+
+    await db.runAsync('DELETE FROM leave_requests WHERE id = ?', [id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1099,30 +1347,60 @@ app.post('/api/meetings', authenticateToken, checkPermission('scheduler', 'creat
 
 app.put('/api/meetings/:id', authenticateToken, checkPermission('scheduler', 'edit'), async (req, res) => {
   const { id } = req.params;
-  const { notes, what_discussed } = req.body;
+  const { title, datetime, duration, recurrence, meeting_type, notes, what_discussed, linked_project_id, attendees } = req.body;
 
   try {
     const mtg = await db.getAsync('SELECT * FROM meetings WHERE id = ?', [id]);
     if (!mtg) return res.status(404).json({ error: 'Meeting not found' });
 
     await db.runAsync(
-      'UPDATE meetings SET notes = ?, what_discussed = ? WHERE id = ?',
-      [notes || mtg.notes, what_discussed || mtg.what_discussed, id]
+      `UPDATE meetings SET title = ?, datetime = ?, duration = ?, recurrence = ?, meeting_type = ?, notes = ?, what_discussed = ?, linked_project_id = ?
+       WHERE id = ?`,
+      [
+        title || mtg.title,
+        datetime || mtg.datetime,
+        duration !== undefined ? duration : mtg.duration,
+        recurrence || mtg.recurrence,
+        meeting_type || mtg.meeting_type,
+        notes !== undefined ? notes : mtg.notes,
+        what_discussed !== undefined ? what_discussed : mtg.what_discussed,
+        linked_project_id !== undefined ? linked_project_id : mtg.linked_project_id,
+        id
+      ]
     );
 
+    if (attendees) {
+      await db.runAsync('DELETE FROM meeting_attendees WHERE meeting_id = ?', [id]);
+      const uniqueAttendees = [...new Set([...attendees, req.user.id])];
+      for (const attId of uniqueAttendees) {
+        await db.runAsync('INSERT INTO meeting_attendees (meeting_id, user_id) VALUES (?, ?)', [id, attId]);
+      }
+    }
+
     // If project-linked, push notes to project chat
-    if (mtg.linked_project_id && what_discussed) {
+    if ((linked_project_id || mtg.linked_project_id) && what_discussed) {
       await db.runAsync(
         `INSERT INTO messages (project_id, sender_id, body)
          VALUES (?, ?, ?)`,
         [
-          mtg.linked_project_id, 
+          linked_project_id || mtg.linked_project_id, 
           req.user.id, 
-          `📝 **Meeting Summary (${mtg.title})**:\n${what_discussed}`
+          `📝 **Meeting Summary (${title || mtg.title})**:\n${what_discussed}`
         ]
       );
     }
 
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/meetings/:id', authenticateToken, checkPermission('scheduler', 'delete'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.runAsync('DELETE FROM meetings WHERE id = ?', [id]);
+    await db.runAsync('DELETE FROM meeting_attendees WHERE meeting_id = ?', [id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1214,6 +1492,7 @@ app.get('/api/marketing/campaigns', authenticateToken, checkPermission('marketin
 app.post('/api/marketing/campaigns', authenticateToken, checkPermission('marketing', 'create'), async (req, res) => {
   const { name, channel, budget, start_date, end_date } = req.body;
   if (!name || !channel) return res.status(400).json({ error: 'Name and Channel are required' });
+  if (budget !== undefined && budget < 0) return res.status(400).json({ error: 'Budget cannot be negative' });
 
   try {
     const result = await db.runAsync(
@@ -1222,6 +1501,34 @@ app.post('/api/marketing/campaigns', authenticateToken, checkPermission('marketi
       [name, channel, budget || 0.0, start_date || '', end_date || '']
     );
     res.json({ success: true, campaignId: result.lastID });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/marketing/campaigns/:id', authenticateToken, checkPermission('marketing', 'edit'), async (req, res) => {
+  const { id } = req.params;
+  const { name, channel, budget, start_date, end_date, leads_count, sales_count } = req.body;
+  if (!name || !channel) return res.status(400).json({ error: 'Name and Channel are required' });
+  if (budget !== undefined && budget < 0) return res.status(400).json({ error: 'Budget cannot be negative' });
+
+  try {
+    await db.runAsync(
+      `UPDATE campaigns SET name = ?, channel = ?, budget = ?, start_date = ?, end_date = ?, leads_count = ?, sales_count = ?
+       WHERE id = ?`,
+      [name, channel, budget || 0.0, start_date || '', end_date || '', leads_count || 0, sales_count || 0, id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/marketing/campaigns/:id', authenticateToken, checkPermission('marketing', 'delete'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.runAsync('DELETE FROM campaigns WHERE id = ?', [id]);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1272,6 +1579,16 @@ app.put('/api/marketing/testimonials/:id', authenticateToken, checkPermission('m
   }
 });
 
+app.delete('/api/marketing/testimonials/:id', authenticateToken, checkPermission('marketing', 'delete'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.runAsync('DELETE FROM testimonials WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- SETTINGS PERMISSIONS MATRIX ---
 app.put('/api/settings/permissions/:role', authenticateToken, async (req, res) => {
   if (req.user.role !== 'SuperAdmin' && req.user.role !== 'Admin') {
@@ -1289,6 +1606,54 @@ app.put('/api/settings/permissions/:role', authenticateToken, async (req, res) =
     res.json({ success: true, message: `Permission template applied to all active ${role} users.` });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// --- SYSTEM RESET ROUTE ---
+app.post('/api/system/reset', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'SuperAdmin') {
+    return res.status(403).json({ error: 'Only the SuperAdmin (Peri) can reset the database.' });
+  }
+
+  try {
+    const tables = [
+      'project_members',
+      'tasks',
+      'documents',
+      'revenue',
+      'expenses',
+      'leads',
+      'meeting_attendees',
+      'meetings',
+      'attendance',
+      'leave_requests',
+      'campaigns',
+      'testimonials',
+      'messages',
+      'notifications',
+      'clients',
+      'projects'
+    ];
+
+    db.serialize(async () => {
+      try {
+        await db.runAsync('BEGIN TRANSACTION');
+        for (const table of tables) {
+          await db.runAsync(`DELETE FROM ${table}`);
+        }
+        await db.runAsync('DELETE FROM users WHERE username != ?', ['Peri']);
+        await db.runAsync('DELETE FROM sqlite_sequence');
+        await db.runAsync('COMMIT');
+        res.json({ success: true, message: 'Database reset successfully. Only the root SuperAdmin (Peri) remains.' });
+      } catch (err) {
+        await db.runAsync('ROLLBACK');
+        console.error('Reset database failed:', err);
+        res.status(500).json({ error: 'Database reset failed: ' + err.message });
+      }
+    });
+  } catch (err) {
+    console.error('Reset database failed:', err);
+    res.status(500).json({ error: 'Server error: ' + err.message });
   }
 });
 

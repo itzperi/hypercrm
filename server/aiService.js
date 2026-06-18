@@ -26,7 +26,7 @@ function regexParserFallback(text) {
   // 2. Fees
   let setupFee = 0;
   let monthlyFee = 0;
-  let currency = "$";
+  let currency = "₹";
 
   // Search setup fee (e.g. setup $800, setup fee 800, $800 setup)
   const setupMatch = text.match(/(?:setup|one-time|one\s+time)(?:\s+fee)?\s*(?:of\s*)?(?:[\$₹])\s*(\d+)|(?:[\$₹])\s*(\d+)\s*(?:setup)/i);
@@ -157,7 +157,7 @@ async function extractClientInfo(rawText) {
         "products": ["Array of services requested e.g. LeadHunter, ReputationGuard, AI Voice Agent"],
         "setupFee": 800, (parsed number, default 0)
         "monthlyFee": 299, (parsed number, default 0)
-        "currency": "$" or "₹" or "£" (default "$"),
+        "currency": "$" or "₹" or "£" (default "₹"),
         "governingLaw": "Governing state or country",
         "cancellationTerms": "cancellation notice details e.g. 30-day cancellation",
         "ipTermsCode": "Terms regarding software dashboard code",
@@ -207,7 +207,7 @@ async function extractClientInfo(rawText) {
         "products": ["Services requested"],
         "setupFee": 800,
         "monthlyFee": 299,
-        "currency": "$",
+        "currency": "₹",
         "governingLaw": "Governing state or country",
         "cancellationTerms": "cancellation notice terms",
         "ipTermsCode": "Dashboard code ownership terms",

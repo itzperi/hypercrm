@@ -9,7 +9,9 @@ import {
   Pin,
   Send,
   CalendarDays,
-  Plus
+  Plus,
+  Edit,
+  Trash2
 } from 'lucide-react';
 
 export default function DevelopmentModule({ user, showToast, triggerAddProject }) {
@@ -18,6 +20,12 @@ export default function DevelopmentModule({ user, showToast, triggerAddProject }
   // States
   const [projects, setProjects] = useState([]);
   const [selectedProj, setSelectedProj] = useState(null);
+  const [employees, setEmployees] = useState([]);
+  
+  // Editing states
+  const [editingProj, setEditingProj] = useState(null);
+  const [editingTask, setEditingTask] = useState(null);
+  const [addingTask, setAddingTask] = useState(false);
   
   // Sub-tab specific states
   const [tasks, setTasks] = useState([]); // deliverables
@@ -28,21 +36,38 @@ export default function DevelopmentModule({ user, showToast, triggerAddProject }
 
   // Form states
   const [issueForm, setIssueForm] = useState({ title: '', severity: 'Medium', description: '' });
+  const [addDeliverableForm, setAddDeliverableForm] = useState({ title: '', assignee_id: '', priority: 'Medium', status: 'To Do', due_date: '' });
 
   const headers = {
     'Authorization': `Bearer ${localStorage.getItem('token')}`,
     'Content-Type': 'application/json'
   };
 
-  useEffect(() => {
+  const loadProjectsList = () => {
     fetch('/api/projects', { headers })
       .then(res => res.ok ? res.json() : [])
       .then(data => {
         setProjects(data);
         if (data.length > 0) {
-          setSelectedProj(data[0]);
+          if (!selectedProj) {
+            setSelectedProj(data[0]);
+          } else {
+            const current = data.find(p => p.id === selectedProj.id);
+            if (current) setSelectedProj(current);
+            else setSelectedProj(data[0]);
+          }
+        } else {
+          setSelectedProj(null);
         }
       });
+  };
+
+  useEffect(() => {
+    loadProjectsList();
+
+    fetch('/api/users', { headers })
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setEmployees(Array.isArray(data) ? data.filter(u => u.role !== 'ClientPortal') : []));
   }, []);
 
   useEffect(() => {
@@ -215,6 +240,99 @@ export default function DevelopmentModule({ user, showToast, triggerAddProject }
       });
   };
 
+  const handleEditProjSubmit = (e) => {
+    e.preventDefault();
+    fetch(`/api/projects/${editingProj.id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(editingProj)
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Project updated successfully');
+          setEditingProj(null);
+          loadProjectsList();
+        }
+      });
+  };
+
+  const handleDeleteProj = (id) => {
+    if (!window.confirm("Are you sure you want to delete this project? This will permanently delete all deliverables, chat discussions, and bugs!")) return;
+    fetch(`/api/projects/${id}`, {
+      method: 'DELETE',
+      headers
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Project deleted successfully');
+          setSelectedProj(null);
+          loadProjectsList();
+        }
+      });
+  };
+
+  const handleAddDeliverable = (e) => {
+    e.preventDefault();
+    fetch('/api/tasks', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        ...addDeliverableForm,
+        project_id: selectedProj.id,
+        type: 'Delivery',
+        approved: 1
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Deliverable added successfully');
+          setAddingTask(false);
+          setAddDeliverableForm({ title: '', assignee_id: employees[0]?.id || '', priority: 'Medium', status: 'To Do', due_date: '' });
+          loadProjectDetails();
+        }
+      });
+  };
+
+  const handleEditTaskSubmit = (e) => {
+    e.preventDefault();
+    fetch(`/api/tasks/${editingTask.id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(editingTask)
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Task updated successfully');
+          setEditingTask(null);
+          loadProjectDetails();
+        }
+      });
+  };
+
+  const handleDeleteTask = (id) => {
+    if (!window.confirm("Are you sure you want to delete this task?")) return;
+    fetch(`/api/tasks/${id}`, {
+      method: 'DELETE',
+      headers
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) showToast(data.error, 'error');
+        else {
+          showToast('Task deleted successfully');
+          loadProjectDetails();
+        }
+      });
+  };
+
   return (
     <div className="crm-page-container" style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '25px', padding: '20px' }}>
       
@@ -259,7 +377,27 @@ export default function DevelopmentModule({ user, showToast, triggerAddProject }
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
-                <h2 style={{ fontSize: '18px', fontWeight: 800 }}>{selectedProj.name}</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <h2 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>{selectedProj.name}</h2>
+                  {user.role !== 'ClientPortal' && (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button 
+                        className="btn secondary" 
+                        style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }}
+                        onClick={() => setEditingProj(selectedProj)}
+                      >
+                        <Edit size={12} />
+                      </button>
+                      <button 
+                        className="btn danger" 
+                        style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }}
+                        onClick={() => handleDeleteProj(selectedProj.id)}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
                   Client: {selectedProj.client_company} ({selectedProj.client_name}) · Target Go-Live: {selectedProj.target_go_live}
                 </div>
@@ -313,7 +451,21 @@ export default function DevelopmentModule({ user, showToast, triggerAddProject }
             {/* --- SUBTAB: DELIVERABLES --- */}
             {activeTab === 'tasks' && (
               <div className="panel-card">
-                <div className="panel-card-title">Project Deliverables Status</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <div className="panel-card-title" style={{ border: 'none', margin: 0 }}>Project Deliverables Status</div>
+                  {user.role !== 'ClientPortal' && (
+                    <button 
+                      className="btn primary" 
+                      style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      onClick={() => {
+                        setAddDeliverableForm({ title: '', assignee_id: employees[0]?.id || '', priority: 'Medium', status: 'To Do', due_date: '' });
+                        setAddingTask(true);
+                      }}
+                    >
+                      <Plus size={12} /> Add Deliverable
+                    </button>
+                  )}
+                </div>
                 <div className="crm-table-wrapper">
                   <table className="crm-table">
                     <thead>
@@ -322,6 +474,7 @@ export default function DevelopmentModule({ user, showToast, triggerAddProject }
                         <th>Assigned Staff</th>
                         <th>Priority</th>
                         <th>Status</th>
+                        {user.role !== 'ClientPortal' && <th>Actions</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -335,11 +488,31 @@ export default function DevelopmentModule({ user, showToast, triggerAddProject }
                               {t.status}
                             </span>
                           </td>
+                          {user.role !== 'ClientPortal' && (
+                            <td>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button 
+                                  className="btn secondary" 
+                                  style={{ padding: '4px 6px', fontSize: '11px' }}
+                                  onClick={() => setEditingTask(t)}
+                                >
+                                  <Edit size={12} />
+                                </button>
+                                <button 
+                                  className="btn danger" 
+                                  style={{ padding: '4px 6px', fontSize: '11px' }}
+                                  onClick={() => handleDeleteTask(t.id)}
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       ))}
                       {tasks.length === 0 && (
                         <tr>
-                          <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No deliverables synced for this project.</td>
+                          <td colSpan={user.role !== 'ClientPortal' ? 5 : 4} style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No deliverables synced for this project.</td>
                         </tr>
                       )}
                     </tbody>
@@ -401,6 +574,24 @@ export default function DevelopmentModule({ user, showToast, triggerAddProject }
                               >
                                 Resolve
                               </button>
+                            )}
+                            {user.role !== 'ClientPortal' && (
+                              <>
+                                <button 
+                                  className="btn secondary" 
+                                  style={{ padding: '2px 6px', fontSize: '9px', display: 'inline-flex', alignItems: 'center' }}
+                                  onClick={() => setEditingTask(iss)}
+                                >
+                                  <Edit size={10} />
+                                </button>
+                                <button 
+                                  className="btn danger" 
+                                  style={{ padding: '2px 6px', fontSize: '9px', display: 'inline-flex', alignItems: 'center' }}
+                                  onClick={() => handleDeleteTask(iss.id)}
+                                >
+                                  <Trash2 size={10} />
+                                </button>
+                              </>
                             )}
                           </div>
                         </div>
@@ -507,6 +698,247 @@ export default function DevelopmentModule({ user, showToast, triggerAddProject }
           </div>
         )}
       </div>
+
+      {/* EDIT PROJECT MODAL */}
+      {editingProj && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '450px' }}>
+            <div className="modal-title">Edit Project: {editingProj.name}</div>
+            <form onSubmit={handleEditProjSubmit}>
+              <div className="form-group">
+                <label>Project Name</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={editingProj.name} 
+                  onChange={e => setEditingProj({...editingProj, name: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Current Phase</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={editingProj.current_phase || ''} 
+                  onChange={e => setEditingProj({...editingProj, current_phase: e.target.value})} 
+                />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Status</label>
+                  <select 
+                    value={editingProj.status} 
+                    onChange={e => setEditingProj({...editingProj, status: e.target.value})}
+                  >
+                    <option>Not Started</option>
+                    <option>In Progress</option>
+                    <option>On Hold</option>
+                    <option>Completed</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Progress %</label>
+                  <input 
+                    type="number" 
+                    required 
+                    min="0"
+                    max="100"
+                    value={editingProj.progress_percent || 0} 
+                    onChange={e => setEditingProj({...editingProj, progress_percent: parseInt(e.target.value) || 0})} 
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Target Go-Live Date</label>
+                <input 
+                  type="date" 
+                  value={editingProj.target_go_live || ''} 
+                  onChange={e => setEditingProj({...editingProj, target_go_live: e.target.value})} 
+                />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Project Manager</label>
+                  <select 
+                    value={editingProj.pm_id || ''} 
+                    onChange={e => setEditingProj({...editingProj, pm_id: e.target.value || null})}
+                  >
+                    <option value="">Select PM...</option>
+                    {employees.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Lead Developer</label>
+                  <select 
+                    value={editingProj.lead_dev_id || ''} 
+                    onChange={e => setEditingProj({...editingProj, lead_dev_id: e.target.value || null})}
+                  >
+                    <option value="">Select Lead Dev...</option>
+                    {employees.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn secondary" onClick={() => setEditingProj(null)}>Cancel</button>
+                <button className="btn primary">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADD DELIVERABLE TASK MODAL */}
+      {addingTask && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '450px' }}>
+            <div className="modal-title">Add Deliverable Task</div>
+            <form onSubmit={handleAddDeliverable}>
+              <div className="form-group">
+                <label>Task Title</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={addDeliverableForm.title} 
+                  onChange={e => setAddDeliverableForm({...addDeliverableForm, title: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Assignee Employee</label>
+                <select 
+                  required 
+                  value={addDeliverableForm.assignee_id} 
+                  onChange={e => setAddDeliverableForm({...addDeliverableForm, assignee_id: e.target.value})}
+                >
+                  <option value="">Select assignee...</option>
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.designation})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Priority</label>
+                  <select 
+                    value={addDeliverableForm.priority} 
+                    onChange={e => setAddDeliverableForm({...addDeliverableForm, priority: e.target.value})}
+                  >
+                    <option>Low</option>
+                    <option>Medium</option>
+                    <option>High</option>
+                    <option>Critical</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Status</label>
+                  <select 
+                    value={addDeliverableForm.status} 
+                    onChange={e => setAddDeliverableForm({...addDeliverableForm, status: e.target.value})}
+                  >
+                    <option>To Do</option>
+                    <option>In Progress</option>
+                    <option>Done</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Due Date</label>
+                <input 
+                  type="date" 
+                  required 
+                  value={addDeliverableForm.due_date} 
+                  onChange={e => setAddDeliverableForm({...addDeliverableForm, due_date: e.target.value})} 
+                />
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn secondary" onClick={() => setAddingTask(false)}>Cancel</button>
+                <button className="btn primary">Add Deliverable</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT TASK / DELIVERABLE / BUG MODAL */}
+      {editingTask && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '450px' }}>
+            <div className="modal-title">Edit Task: {editingTask.title}</div>
+            <form onSubmit={handleEditTaskSubmit}>
+              <div className="form-group">
+                <label>Task Title</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={editingTask.title} 
+                  onChange={e => setEditingTask({...editingTask, title: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Description</label>
+                <textarea 
+                  rows="3" 
+                  value={editingTask.description || ''} 
+                  onChange={e => setEditingTask({...editingTask, description: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Assignee Employee</label>
+                <select 
+                  required 
+                  value={editingTask.assignee_id || ''} 
+                  onChange={e => setEditingTask({...editingTask, assignee_id: e.target.value})}
+                >
+                  <option value="">Unassigned</option>
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.designation})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Priority</label>
+                  <select 
+                    value={editingTask.priority || 'Medium'} 
+                    onChange={e => setEditingTask({...editingTask, priority: e.target.value})}
+                  >
+                    <option>Low</option>
+                    <option>Medium</option>
+                    <option>High</option>
+                    <option>Critical</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Status</label>
+                  <select 
+                    value={editingTask.status || 'To Do'} 
+                    onChange={e => setEditingTask({...editingTask, status: e.target.value})}
+                  >
+                    <option value="To Do">To Do / Active</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Done">Done / Resolved</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Due Date</label>
+                <input 
+                  type="date" 
+                  value={editingTask.due_date || ''} 
+                  onChange={e => setEditingTask({...editingTask, due_date: e.target.value})} 
+                />
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn secondary" onClick={() => setEditingTask(null)}>Cancel</button>
+                <button className="btn primary">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
